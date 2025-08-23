@@ -87,6 +87,7 @@ function App() {
           if (shouldRender) {
             return (
               <GameClient
+                key="game-client" // Persist the same component instance
                 connectionInfo={connectionInfo()}
                 gameState={state}
                 onConnectionSuccess={handleConnectionSuccess}

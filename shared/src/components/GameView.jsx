@@ -5,6 +5,8 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
   const [gameContainer, setGameContainer] = createSignal(null);
   const [phaserGame, setPhaserGame] = createSignal(null);
 
+  console.log('[GAMEVIEW] GameView props:', { connectionInfo, wsConnection, playerId, onLeaveGame, onMessage });
+
   onMount(async () => {
     try {
       console.log('[GAMEVIEW] Mounting GameView component');

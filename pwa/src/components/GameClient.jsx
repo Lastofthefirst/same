@@ -26,6 +26,11 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
   });
 
   onMount(() => {
+    if (!connectionInfo) {
+      console.error('[GAMECLIENT] No connection info available in onMount');
+      return;
+    }
+    console.log('[GAMECLIENT] onMount called, connecting to game');
     connectToGame();
   });
 
@@ -39,6 +44,13 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
   const connectToGame = () => {
     if (!connectionInfo) {
       console.error('[GAMECLIENT] No connection info available');
+      return;
+    }
+
+    // Prevent multiple connections
+    const existingWs = wsConnection();
+    if (existingWs && existingWs.isConnected) {
+      console.log('[GAMECLIENT] Already connected, skipping connection attempt');
       return;
     }
 
@@ -208,6 +220,12 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
         if (state === 'playing') {
           console.log('[GAMECLIENT] Rendering GameView component');
           try {
+            console.log('[GAMECLIENT] Props to pass to GameView:', {
+              connectionInfo: connectionInfo(),
+              wsConnection: wsConnection(),
+              playerId: playerId()
+            });
+            
             const gameView = (
               <GameView
                 connectionInfo={connectionInfo()}

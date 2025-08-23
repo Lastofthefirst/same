@@ -45,5 +45,15 @@ export default defineConfig({
     alias: {
       '@shared': new URL('../shared/src', import.meta.url).pathname
     }
+  },
+  build: {
+    rollupOptions: {
+      external: []
+    },
+    target: 'esnext',
+    minify: 'esbuild'
+  },
+  optimizeDeps: {
+    include: ['phaser']
   }
 });

@@ -10,6 +10,9 @@
     "./game": "./src/game/index.js",
     "./utils": "./src/utils/index.js"
   },
+  "dependencies": {
+    "phaser": "^3.88.2"
+  },
   "peerDependencies": {
     "solid-js": "^1.9.3"
   },

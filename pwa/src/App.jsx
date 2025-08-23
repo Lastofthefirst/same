@@ -79,24 +79,16 @@ function App() {
           </div>
         )}
 
-        {(() => {
-          const state = gameState();
-          console.log('[APP] Rendering game client section, gameState:', state);
-          const shouldRender = (state === 'joining' || state === 'connected' || state === 'playing');
-          console.log('[APP] Should render GameClient:', shouldRender);
-          if (shouldRender) {
-            return (
-              <GameClient
-                connectionInfo={connectionInfo()}
-                gameState={state}
-                onConnectionSuccess={handleConnectionSuccess}
-                onConnectionError={handleConnectionError}
-                onStartGame={handleStartGame}
-                onLeaveGame={handleLeaveGame}
-              />
-            );
-          }
-        })()}
+        {(gameState() === 'joining' || gameState() === 'connected' || gameState() === 'playing') && (
+          <GameClient
+            connectionInfo={connectionInfo()}
+            gameState={gameState()}
+            onConnectionSuccess={handleConnectionSuccess}
+            onConnectionError={handleConnectionError}
+            onStartGame={handleStartGame}
+            onLeaveGame={handleLeaveGame}
+          />
+        )}
       </div>
     </div>
   );

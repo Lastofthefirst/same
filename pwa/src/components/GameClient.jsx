@@ -8,6 +8,7 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
   const [playerId, setPlayerId] = createSignal(generatePlayerId());
   const [lobbyInfo, setLobbyInfo] = createSignal(null);
   const [connectionStatus, setConnectionStatus] = createSignal('connecting');
+  const [hasConnected, setHasConnected] = createSignal(false);
 
   console.log('[GAMECLIENT] Initialized with gameState:', gameState);
 
@@ -26,7 +27,17 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
   });
 
   onMount(() => {
-    connectToGame();
+    if (!connectionInfo) {
+      console.error('[GAMECLIENT] No connection info available in onMount');
+      return;
+    }
+    if (!hasConnected()) {
+      console.log('[GAMECLIENT] onMount called, connecting to game');
+      connectToGame();
+      setHasConnected(true);
+    } else {
+      console.log('[GAMECLIENT] onMount called but already connected, skipping');
+    }
   });
 
   onCleanup(() => {
@@ -37,49 +48,69 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
   });
 
   const connectToGame = () => {
-    if (!connectionInfo) return;
+    if (!connectionInfo) {
+      console.error('[GAMECLIENT] No connection info available');
+      return;
+    }
+
+    // Prevent multiple connections
+    const existingWs = wsConnection();
+    if (existingWs && existingWs.isConnected) {
+      console.log('[GAMECLIENT] Already connected, skipping connection attempt');
+      return;
+    }
 
     const { host, port } = connectionInfo;
     const wsUrl = `ws://${host}:${port}`;
     
+    console.log('[GAMECLIENT] Attempting to connect to:', wsUrl);
     setConnectionStatus('connecting');
 
     const ws = createReconnectingWebSocket(wsUrl, {
-      maxReconnectAttempts: 3,
+      maxReconnectAttempts: 5,
       reconnectInterval: 2000,
       
       onConnect: () => {
-        console.log('Connected to game server');
+        console.log('[GAMECLIENT] Connected to game server');
         setConnectionStatus('connected');
         
         // Send join message
-        const joinMessage = createMessage(
-          'PLAYER_JOIN',
-          {
-            id: playerId(),
-            name: `Player ${Math.floor(Math.random() * 1000)}`,
-            x: 0.0,
-            y: 0.0,
-            connected: true
-          },
-          playerId()
-        );
-        ws.send(joinMessage);
-        
-        onConnectionSuccess();
+        try {
+          const joinMessage = createMessage(
+            'PLAYER_JOIN',
+            {
+              id: playerId(),
+              name: `Player ${Math.floor(Math.random() * 1000)}`,
+              x: 0.0,
+              y: 0.0,
+              connected: true
+            },
+            playerId()
+          );
+          console.log('[GAMECLIENT] Sending join message:', joinMessage);
+          ws.send(joinMessage);
+          
+          onConnectionSuccess();
+        } catch (error) {
+          console.error('[GAMECLIENT] Error sending join message:', error);
+        }
       },
       
       onMessage: (message) => {
-        handleMessage(message);
+        try {
+          handleMessage(message);
+        } catch (error) {
+          console.error('[GAMECLIENT] Error handling message:', error);
+        }
       },
       
       onDisconnect: () => {
-        console.log('Disconnected from game server');
+        console.log('[GAMECLIENT] Disconnected from game server');
         setConnectionStatus('disconnected');
       },
       
       onError: (error) => {
-        console.error('WebSocket error:', error);
+        console.error('[GAMECLIENT] WebSocket error:', error);
         setConnectionStatus('error');
         onConnectionError(error);
       }
@@ -90,7 +121,12 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
   };
 
   const handleMessage = (message) => {
-    console.log('Received message:', message);
+    console.log('[GAMECLIENT] Received message:', message);
+    
+    if (!message || !message.type) {
+      console.warn('[GAMECLIENT] Invalid message received:', message);
+      return;
+    }
     
     switch (message.type) {
       case 'PLAYER_LIST':
@@ -111,18 +147,21 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
       case 'PLAYER_UPDATE':
         // Handle player position updates
         // These will be handled by the GameView component
+        console.log('[GAMECLIENT] Player update received:', message.data);
         break;
         
       case 'ERROR':
+        console.error('[GAMECLIENT] Server error:', message.data);
         onConnectionError(new Error(message.data.message || 'Server error'));
         break;
         
       case 'PONG':
         // Handle ping/pong for connection health
+        console.log('[GAMECLIENT] Pong received');
         break;
         
       default:
-        console.log('Unhandled message type:', message.type);
+        console.log('[GAMECLIENT] Unhandled message type:', message.type, message);
     }
   };
 
@@ -187,11 +226,24 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
         if (state === 'playing') {
           console.log('[GAMECLIENT] Rendering GameView component');
           try {
+            const connInfo = connectionInfo;
+            const wsConn = wsConnection();
+            const pId = playerId();
+            
+            console.log('[GAMECLIENT] Props to pass to GameView:', {
+              connectionInfo: connInfo,
+              wsConnection: wsConn,
+              playerId: pId,
+              connectionInfoType: typeof connInfo,
+              wsConnectionType: typeof wsConn,
+              playerIdType: typeof pId
+            });
+            
             const gameView = (
               <GameView
-                connectionInfo={connectionInfo()}
-                wsConnection={wsConnection()}
-                playerId={playerId()}
+                connectionInfo={connInfo}
+                wsConnection={wsConn}
+                playerId={pId}
                 onLeaveGame={handleLeave}
                 onMessage={handleMessage}
               />

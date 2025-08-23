@@ -8,16 +8,48 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
   onMount(async () => {
     try {
       console.log('[GAMEVIEW] Mounting GameView component');
+      
+      // Wait for container to be available and have dimensions
+      const container = gameContainer();
+      if (!container) {
+        console.error('[GAMEVIEW] Game container not found');
+        return;
+      }
+      
+      // Wait for container to have dimensions
+      let retries = 0;
+      const maxRetries = 50;
+      while (retries < maxRetries) {
+        const rect = container.getBoundingClientRect();
+        console.log('[GAMEVIEW] Container dimensions:', rect.width, 'x', rect.height);
+        
+        if (rect.width > 0 && rect.height > 0) {
+          break;
+        }
+        
+        retries++;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      const containerRect = container.getBoundingClientRect();
+      if (containerRect.width === 0 || containerRect.height === 0) {
+        console.error('[GAMEVIEW] Container has no dimensions after waiting');
+        return;
+      }
+      
       // Dynamically import Phaser to avoid SSR issues
       const Phaser = await import('phaser');
       
-      // Create Phaser game configuration
+      // Create Phaser game configuration with proper error handling
       const config = {
         type: Phaser.AUTO,
-        width: window.innerWidth,
-        height: window.innerHeight,
-        parent: gameContainer(),
+        width: Math.max(containerRect.width, 800),
+        height: Math.max(containerRect.height, 600),
+        parent: container,
         backgroundColor: '#2d5016',
+        antialias: true,
+        pixelArt: false,
+        roundPixels: false,
         physics: {
           default: 'arcade',
           arcade: {
@@ -32,31 +64,50 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
         },
         scale: {
           mode: Phaser.Scale.RESIZE,
-          autoCenter: Phaser.Scale.CENTER_BOTH
+          autoCenter: Phaser.Scale.CENTER_BOTH,
+          min: {
+            width: 400,
+            height: 300
+          },
+          max: {
+            width: 2560,
+            height: 1440
+          }
+        },
+        render: {
+          antialias: false,
+          pixelArt: false,
+          autoResize: true,
+          powerPreference: 'default'
+        },
+        canvas: {
+          alpha: false,
+          desynchronized: false
         }
       };
 
+      console.log('[GAMEVIEW] Creating Phaser game with config:', config);
       const game = new Phaser.Game(config);
       setPhaserGame(game);
       console.log('[GAMEVIEW] Phaser game created');
       
       // Set up message handling from outside the game
       const waitForScene = setInterval(() => {
-        if (game.scene.scenes[0]) {
+        if (game.scene.scenes[0] && game.scene.scenes[0].scene.isActive()) {
           clearInterval(waitForScene);
           console.log('[GAMEVIEW] Game scene ready');
           
           // Bind functions to game scenes
-          game.scene.scenes[0].createFarmMap = createFarmMap.bind(game.scene.scenes[0]);
-          game.scene.scenes[0].createSpecialTiles = createSpecialTiles.bind(game.scene.scenes[0]);
-          game.scene.scenes[0].createUI = createUI.bind(game.scene.scenes[0]);
-          game.scene.scenes[0].handleResize = handleResize.bind(game.scene.scenes[0]);
-          game.scene.scenes[0].updateRemotePlayer = updateRemotePlayer.bind(game.scene.scenes[0]);
-          game.scene.scenes[0].performFarmingAction = performFarmingAction.bind(game.scene.scenes[0]);
-          game.scene.scenes[0].showActionFeedback = showActionFeedback.bind(game.scene.scenes[0]);
+          const scene = game.scene.scenes[0];
+          scene.createFarmMap = createFarmMap.bind(scene);
+          scene.createSpecialTiles = createSpecialTiles.bind(scene);
+          scene.createUI = createUI.bind(scene);
+          scene.handleResize = handleResize.bind(scene);
+          scene.updateRemotePlayer = updateRemotePlayer.bind(scene);
+          scene.performFarmingAction = performFarmingAction.bind(scene);
+          scene.showActionFeedback = showActionFeedback.bind(scene);
           
           // Set up message handling from outside the game
-          const gameScene = game.scene.scenes[0];
           if (wsConnection && typeof wsConnection.addMessageHandler === 'function' && typeof onMessage === 'function') {
             // Add the message handler to the WebSocket connection
             wsConnection.addMessageHandler(onMessage);
@@ -65,8 +116,13 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
         }
       }, 10);
       
+      // Clear interval after 10 seconds to prevent infinite loop
+      setTimeout(() => {
+        clearInterval(waitForScene);
+      }, 10000);
+      
     } catch (error) {
-      console.error('[GAME] Failed to initialize Phaser game:', error);
+      console.error('[GAMEVIEW] Failed to initialize Phaser game:', error);
     }
   });
 
@@ -100,12 +156,21 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
 
   function createGame() {
     try {
+      console.log('[GAMEVIEW] Starting game creation');
+      
       // Game constants
       const TILE_SIZE = 32;
       const MAP_WIDTH = 25;
       const MAP_HEIGHT = 25;
       const WORLD_WIDTH = MAP_WIDTH * TILE_SIZE;
       const WORLD_HEIGHT = MAP_HEIGHT * TILE_SIZE;
+      
+      // Validate WebGL context is working
+      if (this.renderer && this.renderer.gl) {
+        console.log('[GAMEVIEW] WebGL context available:', this.renderer.gl.getParameter(this.renderer.gl.VERSION));
+      } else {
+        console.log('[GAMEVIEW] Using canvas renderer');
+      }
       
       // Set world bounds
       this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
@@ -153,7 +218,7 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
       
       // Set up network message handling
       this.networkUpdate = (message) => {
-        console.log('[GAME] Received network message:', message);
+        console.log('[GAMEVIEW] Received network message:', message);
         if (message.type === 'PLAYER_UPDATE') {
           // Check if this is not our own message
           const senderId = message.player_id || message.data?.player_id;
@@ -167,10 +232,18 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
         }
       };
       
-      console.log('[GAME] Farm created with', MAP_WIDTH, 'x', MAP_HEIGHT, 'tiles');
+      console.log('[GAMEVIEW] Farm created with', MAP_WIDTH, 'x', MAP_HEIGHT, 'tiles');
       
     } catch (error) {
-      console.error('[GAME] Error in createGame:', error);
+      console.error('[GAMEVIEW] Error in createGame:', error);
+      // Try to show an error message to the user
+      if (this.add) {
+        this.add.text(50, 50, 'Game initialization failed. Please refresh and try again.', {
+          fontSize: '24px',
+          fill: '#ff0000',
+          fontFamily: 'Arial'
+        });
+      }
     }
   }
 
@@ -256,49 +329,54 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
 
   // Create UI elements
   function createUI() {
-    // Fixed UI that stays on screen
-    this.uiContainer = this.add.container(0, 0);
-    this.uiContainer.setScrollFactor(0); // Fixed to camera
-    
-    // Game title and instructions
-    const title = this.add.text(20, 20, '🌾 Same Mouth Farm 🌾', {
-      fontSize: '32px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      stroke: '#000000',
-      strokeThickness: 4
-    });
-    
-    const instructions = this.add.text(20, 60, 'WASD/Arrows: Move • Space: Plant/Water • Work together!', {
-      fontSize: '18px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      stroke: '#000000',
-      strokeThickness: 2
-    });
-    
-    // Game status indicator
-    const status = this.add.text(20, 90, '✅ Game Running • Multiplayer Ready', {
-      fontSize: '16px',
-      fill: '#22c55e',
-      fontFamily: 'Arial',
-      stroke: '#000000',
-      strokeThickness: 2
-    });
-    
-    this.uiContainer.add([title, instructions, status]);
-    
-    // Add player info
-    this.playerInfo = this.add.text(20, window.innerHeight - 100, `Player: ${this.playerId}`, {
-      fontSize: '16px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      stroke: '#000000',
-      strokeThickness: 2
-    });
-    this.playerInfo.setScrollFactor(0);
-    
-    console.log('[GAME] UI created successfully');
+    try {
+      // Fixed UI that stays on screen
+      this.uiContainer = this.add.container(0, 0);
+      this.uiContainer.setScrollFactor(0); // Fixed to camera
+      
+      // Game title and instructions
+      const title = this.add.text(20, 20, '🌾 Same Mouth Farm 🌾', {
+        fontSize: '32px',
+        fill: '#ffffff',
+        fontFamily: 'Arial',
+        stroke: '#000000',
+        strokeThickness: 4
+      });
+      
+      const instructions = this.add.text(20, 60, 'WASD/Arrows: Move • Space: Plant/Water • Work together!', {
+        fontSize: '18px',
+        fill: '#ffffff',
+        fontFamily: 'Arial',
+        stroke: '#000000',
+        strokeThickness: 2
+      });
+      
+      // Game status indicator
+      const status = this.add.text(20, 90, '✅ Game Running • Multiplayer Ready', {
+        fontSize: '16px',
+        fill: '#22c55e',
+        fontFamily: 'Arial',
+        stroke: '#000000',
+        strokeThickness: 2
+      });
+      
+      this.uiContainer.add([title, instructions, status]);
+      
+      // Add player info - use game dimensions instead of window dimensions
+      const gameHeight = this.scale.gameSize.height;
+      this.playerInfo = this.add.text(20, gameHeight - 100, `Player: ${this.playerId}`, {
+        fontSize: '16px',
+        fill: '#ffffff',
+        fontFamily: 'Arial',
+        stroke: '#000000',
+        strokeThickness: 2
+      });
+      this.playerInfo.setScrollFactor(0);
+      
+      console.log('[GAMEVIEW] UI created successfully');
+    } catch (error) {
+      console.error('[GAMEVIEW] Error creating UI:', error);
+    }
   }
 
   // Handle window resize
@@ -342,7 +420,10 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
 
   function updateGame() {
     try {
-      if (!this.player) return;
+      if (!this.player || !this.player.body) {
+        console.warn('[GAMEVIEW] Player or player body not available in updateGame');
+        return;
+      }
       
       const speed = 120; // Slightly slower for more precise control
       let moved = false;
@@ -379,17 +460,21 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
         this.performFarmingAction();
       }
       
-      // Send position update if moved
+      // Send position update if moved and connection is available
       if (moved && this.wsConnection && this.wsConnection.isConnected) {
-        const message = createMessage(
-          'PLAYER_UPDATE',
-          {
-            x: this.player.x,
-            y: this.player.y
-          },
-          this.playerId
-        );
-        this.wsConnection.send(message);
+        try {
+          const message = createMessage(
+            'PLAYER_UPDATE',
+            {
+              x: this.player.x,
+              y: this.player.y
+            },
+            this.playerId
+          );
+          this.wsConnection.send(message);
+        } catch (networkError) {
+          console.warn('[GAMEVIEW] Failed to send player update:', networkError);
+        }
       }
       
       // Update remote players
@@ -401,7 +486,7 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
       }
       
     } catch (error) {
-      console.error('[GAME] Error in updateGame:', error);
+      console.error('[GAMEVIEW] Error in updateGame:', error);
     }
   }
 

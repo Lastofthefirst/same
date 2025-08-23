@@ -96,9 +96,11 @@ function GameClient({ onBackToMenu }) {
         ws.send({
           type: 'PLAYER_JOIN',
           data: {
-            playerId,
-            playerName: `Player ${Math.floor(Math.random() * 1000)}`,
-            timestamp: Date.now()
+            id: playerId,
+            name: `Player ${Math.floor(Math.random() * 1000)}`,
+            x: 0.0,
+            y: 0.0,
+            connected: true
           }
         });
       },

@@ -31,10 +31,11 @@ function GameHost({ gameInfo, onBackToMenu }) {
         ws.send({
           type: 'PLAYER_JOIN',
           data: {
-            playerId: 'host',
-            playerName: 'Host',
-            isHost: true,
-            timestamp: Date.now()
+            id: 'host',
+            name: 'Host',
+            x: 0.0,
+            y: 0.0,
+            connected: true
           }
         });
       },
@@ -61,6 +62,7 @@ function GameHost({ gameInfo, onBackToMenu }) {
     
     switch (message.type) {
       case 'PLAYER_LIST':
+        console.log('Player list update:', message.data.players);
         setPlayers(message.data.players || []);
         break;
         

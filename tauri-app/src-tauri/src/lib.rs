@@ -109,13 +109,16 @@ async fn handle_connection(stream: TcpStream, game_state: GameState, connections
                     if let Ok(game_message) = serde_json::from_str::<GameMessage>(text) {
                         match game_message.r#type.as_str() {
                             "PLAYER_JOIN" => {
+                                println!("Received PLAYER_JOIN message: {:?}", game_message.data);
                                 if let Ok(player_data) = serde_json::from_value::<Player>(game_message.data) {
+                                    println!("Successfully parsed player data: {:?}", player_data);
                                     player_id = Some(player_data.id.clone());
                                     
                                     // Add player to game state
                                     {
                                         let mut state = game_state.lock().unwrap();
                                         state.insert(player_data.id.clone(), player_data.clone());
+                                        println!("Added player to state. Total players: {}", state.len());
                                     }
                                     
                                     // Add connection
@@ -152,6 +155,8 @@ async fn handle_connection(stream: TcpStream, game_state: GameState, connections
                                     if let Ok(response_text) = serde_json::to_string(&response) {
                                         let _ = tx_clone.send(Message::Text(response_text));
                                     }
+                                } else {
+                                    println!("Failed to parse PLAYER_JOIN data as Player struct: {:?}", game_message.data);
                                 }
                             }
                             "PLAYER_UPDATE" => {
@@ -231,6 +236,8 @@ async fn broadcast_player_list(game_state: &GameState, connections: &Connections
         state.values().cloned().collect()
     };
     
+    println!("Broadcasting player list with {} players: {:?}", players.len(), players);
+    
     let message = GameMessage {
         r#type: "PLAYER_LIST".to_string(),
         data: serde_json::json!({ "players": players }),
@@ -244,6 +251,7 @@ async fn broadcast_player_list(game_state: &GameState, connections: &Connections
     
     if let Ok(message_text) = serde_json::to_string(&message) {
         let conns = connections.lock().unwrap();
+        println!("Sending to {} connections", conns.len());
         for tx in conns.values() {
             let _ = tx.send(Message::Text(message_text.clone()));
         }

@@ -7,6 +7,7 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
 
   onMount(async () => {
     try {
+      console.log('[GAMEVIEW] Mounting GameView component');
       // Dynamically import Phaser to avoid SSR issues
       const Phaser = await import('phaser');
       
@@ -37,11 +38,13 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
 
       const game = new Phaser.Game(config);
       setPhaserGame(game);
+      console.log('[GAMEVIEW] Phaser game created');
       
       // Set up message handling from outside the game
       const waitForScene = setInterval(() => {
         if (game.scene.scenes[0]) {
           clearInterval(waitForScene);
+          console.log('[GAMEVIEW] Game scene ready');
           
           // Bind functions to game scenes
           game.scene.scenes[0].createFarmMap = createFarmMap.bind(game.scene.scenes[0]);
@@ -54,25 +57,10 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
           
           // Set up message handling from outside the game
           const gameScene = game.scene.scenes[0];
-          if (onMessage && typeof onMessage === 'function') {
-            // Store the original message handler
-            const originalHandler = onMessage;
-            
-            // Create a new handler that also updates the game
-            const enhancedHandler = (message) => {
-              // Call the original handler first
-              originalHandler(message);
-              
-              // Then handle game-specific updates
-              if (gameScene && gameScene.networkUpdate) {
-                gameScene.networkUpdate(message);
-              }
-            };
-            
-            // If we can override the message handler, do it
-            if (wsConnection && wsConnection.onMessage) {
-              wsConnection.onMessage = enhancedHandler;
-            }
+          if (wsConnection && typeof wsConnection.addMessageHandler === 'function' && typeof onMessage === 'function') {
+            // Add the message handler to the WebSocket connection
+            wsConnection.addMessageHandler(onMessage);
+            console.log('[GAMEVIEW] Message handler added');
           }
         }
       }, 10);
@@ -89,9 +77,8 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
     }
     
     // Remove message handler if it was added
-    const ws = wsConnection;
-    if (ws && typeof ws.removeMessageHandler === 'function' && typeof onMessage === 'function') {
-      ws.removeMessageHandler(onMessage);
+    if (wsConnection && typeof wsConnection.removeMessageHandler === 'function' && typeof onMessage === 'function') {
+      wsConnection.removeMessageHandler(onMessage);
     }
   });
 

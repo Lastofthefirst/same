@@ -23,42 +23,49 @@ function GameHost({ gameInfo, onBackToMenu }) {
   });
 
   const connectToOwnServer = () => {
-    const wsUrl = `ws://${gameInfo.hostIp}:${gameInfo.port}`;
-    
-    const ws = createReconnectingWebSocket(wsUrl, {
-      maxReconnectAttempts: 5,
-      reconnectInterval: 1000,
+    // Add a small delay to ensure server is fully started
+    setTimeout(() => {
+      const wsUrl = `ws://${gameInfo.hostIp}:${gameInfo.port}`;
       
-      onConnect: () => {
-        console.log('Connected to own server');
-        // Send host join message
-        ws.send({
-          type: 'PLAYER_JOIN',
-          data: {
-            id: 'host',
-            name: 'Host',
-            x: 0.0,
-            y: 0.0,
-            connected: true
-          }
-        });
-      },
+      console.log('[HOST] Attempting to connect to own server at:', wsUrl);
       
-      onMessage: (message) => {
-        handleServerMessage(message);
-      },
-      
-      onDisconnect: () => {
-        console.log('Disconnected from own server');
-      },
-      
-      onError: (error) => {
-        console.error('Host connection error:', error);
-      }
-    });
+      const ws = createReconnectingWebSocket(wsUrl, {
+        maxReconnectAttempts: 3,
+        reconnectInterval: 2000,
+        
+        onConnect: () => {
+          console.log('[HOST] Connected to own server successfully');
+          // Send host join message
+          ws.send({
+            type: 'PLAYER_JOIN',
+            data: {
+              id: 'host',
+              name: 'Host',
+              x: 50.0,
+              y: 50.0,
+              connected: true
+            }
+          });
+        },
+        
+        onMessage: (message) => {
+          console.log('[HOST] Received message from server:', message);
+          handleServerMessage(message);
+        },
+        
+        onDisconnect: () => {
+          console.log('[HOST] Disconnected from own server');
+        },
+        
+        onError: (error) => {
+          console.error('[HOST] Connection error:', error);
+          console.log('[HOST] This is normal if the server is still starting up...');
+        }
+      });
 
-    ws.connect();
-    setServerConnection(ws);
+      ws.connect();
+      setServerConnection(ws);
+    }, 1000); // Wait 1 second for server to fully start
   };
 
   const handleServerMessage = (message) => {

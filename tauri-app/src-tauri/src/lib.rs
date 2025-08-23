@@ -43,9 +43,30 @@ fn greet(name: &str) -> String {
 #[tauri::command]
 async fn get_local_ip() -> Result<String, String> {
     match local_ip_address::local_ip() {
-        Ok(ip) => Ok(ip.to_string()),
-        Err(e) => Err(format!("Failed to get local IP: {}", e)),
+        Ok(ip) => {
+            println!("[NETWORK] Local IP address detected as: {}", ip);
+            Ok(ip.to_string())
+        },
+        Err(e) => {
+            println!("[NETWORK] Failed to get local IP: {}", e);
+            Err(format!("Failed to get local IP: {}", e))
+        }
     }
+}
+
+#[tauri::command]
+async fn get_server_status() -> Result<String, String> {
+    let server_shutdown = SERVER_SHUTDOWN.lock().unwrap();
+    let is_running = server_shutdown.is_some();
+    
+    let status = if is_running {
+        "Server is running"
+    } else {
+        "No server running"
+    };
+    
+    println!("[SERVER] Status check: {}", status);
+    Ok(status.to_string())
 }
 
 #[tauri::command]
@@ -141,15 +162,22 @@ async fn run_game_server(listener: TcpListener, mut shutdown_rx: broadcast::Rece
 }
 
 async fn handle_connection(stream: TcpStream, game_state: GameState, connections: Connections) {
-    println!("[CONNECTION] Attempting to upgrade connection to WebSocket");
+    // Get peer address for logging
+    let peer_addr = match stream.peer_addr() {
+        Ok(addr) => addr.to_string(),
+        Err(_) => "unknown".to_string(),
+    };
+    
+    println!("[CONNECTION] Attempting to upgrade connection from {} to WebSocket", peer_addr);
     
     let ws_stream = match accept_async(stream).await {
         Ok(ws) => {
-            println!("[CONNECTION] Successfully upgraded to WebSocket");
+            println!("[CONNECTION] Successfully upgraded connection from {} to WebSocket", peer_addr);
             ws
         },
         Err(e) => {
-            println!("[CONNECTION] Error upgrading connection: {}", e);
+            println!("[CONNECTION] Error upgrading connection from {}: {}", peer_addr, e);
+            println!("[CONNECTION] This might be due to: non-WebSocket request, missing upgrade headers, or rapid connection attempts");
             return;
         }
     };
@@ -331,21 +359,25 @@ async fn handle_connection(stream: TcpStream, game_state: GameState, connections
     
     // Clean up on disconnect
     if let Some(pid) = player_id {
-        println!("[CLEANUP] Cleaning up player {} on disconnect", pid);
+        println!("[CLEANUP] Cleaning up player {} ({}) on disconnect", pid, peer_addr);
         // Remove player from state
         {
             let mut state = game_state.lock().unwrap();
             state.remove(&pid);
+            println!("[CLEANUP] Removed player {} from state. Remaining players: {}", pid, state.len());
         }
         
         // Remove connection
         {
             let mut conns = connections.lock().unwrap();
             conns.remove(&pid);
+            println!("[CLEANUP] Removed connection for player {}. Remaining connections: {}", pid, conns.len());
         }
         
         // Broadcast updated player list
         broadcast_player_list(&game_state, &connections).await;
+    } else {
+        println!("[CLEANUP] Connection from {} closed without establishing player session", peer_addr);
     }
 }
 
@@ -403,7 +435,7 @@ async fn broadcast_to_others(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, get_local_ip, start_game_server, stop_game_server])
+        .invoke_handler(tauri::generate_handler![greet, get_local_ip, start_game_server, stop_game_server, get_server_status])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

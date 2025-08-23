@@ -1,2 +1,40 @@
-node_modules
-dist
+# Dependencies
+node_modules/
+*/node_modules/
+pnpm-lock.yaml
+*/pnpm-lock.yaml
+
+# Build outputs
+dist/
+*/dist/
+build/
+*/build/
+
+# Tauri
+target/
+*/target/
+src-tauri/target/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+/tmp/
+*.tmp
+*.temp

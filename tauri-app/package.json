@@ -1,0 +1,26 @@
+{
+  "name": "same-tauri",
+  "version": "0.1.0",
+  "description": "Same Mouth Tauri App - Host and play farming games",
+  "type": "module",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview",
+    "tauri": "tauri"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "solid-js": "^1.9.3",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "phaser": "^3.88.2",
+    "@same/shared": "file:../shared"
+  },
+  "devDependencies": {
+    "vite": "^6.0.3",
+    "vite-plugin-solid": "^2.11.0",
+    "@tauri-apps/cli": "^2"
+  }
+}

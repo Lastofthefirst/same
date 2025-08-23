@@ -28,4 +28,9 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  resolve: {
+    alias: {
+      '@shared': '/node_modules/@same/shared/src'
+    }
+  }
 }));

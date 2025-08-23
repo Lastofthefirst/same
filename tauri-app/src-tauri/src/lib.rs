@@ -128,13 +128,14 @@ async fn handle_connection(stream: TcpStream, game_state: GameState, connections
                                     broadcast_player_list(&game_state, &connections).await;
                                     
                                     // Send lobby info to new player
+                                    let player_count = {
+                                        let state = game_state.lock().unwrap();
+                                        state.len()
+                                    };
                                     let lobby_info = serde_json::json!({
                                         "farmName": "Local Farm",
                                         "status": "waiting",
-                                        "playerCount": {
-                                            let state = game_state.lock().unwrap();
-                                            state.len()
-                                        }
+                                        "playerCount": player_count
                                     });
                                     
                                     let response = GameMessage {

@@ -1,0 +1,20 @@
+{
+  "name": "@same/shared",
+  "version": "0.1.0",
+  "description": "Shared components and logic for Same Mouth farming game",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./components": "./src/components/index.js",
+    "./game": "./src/game/index.js",
+    "./utils": "./src/utils/index.js"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.3"
+  },
+  "devDependencies": {
+    "vite": "^6.0.3",
+    "vite-plugin-solid": "^2.11.0"
+  }
+}

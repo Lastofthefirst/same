@@ -1,12 +1,14 @@
 import { createSignal, onMount, onCleanup } from "solid-js";
+import { invoke } from "@tauri-apps/api/core";
 import { createReconnectingWebSocket } from "@shared/utils/networkUtils";
-import { MultiPlayerManager } from "@shared/components";
+import { MultiPlayerManager, GameRoom } from "@shared/components";
 
 function GameHost({ gameInfo, onBackToMenu }) {
   const [players, setPlayers] = createSignal([]);
   const [gameState, setGameState] = createSignal('lobby'); // 'lobby', 'starting', 'playing'
   const [serverConnection, setServerConnection] = createSignal(null);
   const [localPlayers, setLocalPlayers] = createSignal([]);
+  const [readyToFarm, setReadyToFarm] = createSignal(false);
 
   onMount(() => {
     // Connect to our own server to monitor the game
@@ -92,16 +94,64 @@ function GameHost({ gameInfo, onBackToMenu }) {
     }
   };
 
-  const stopServer = () => {
-    const connection = serverConnection();
-    if (connection) {
-      connection.close();
+  const stopServer = async () => {
+    try {
+      console.log('[HOST] Stopping server...');
+      
+      // Close WebSocket connection first
+      const connection = serverConnection();
+      if (connection) {
+        connection.close();
+        setServerConnection(null);
+      }
+      
+      // Stop the actual server
+      const result = await invoke("stop_game_server");
+      console.log('[HOST] Server stop result:', result);
+      
+    } catch (err) {
+      console.error('[HOST] Failed to stop server:', err);
+    } finally {
+      // Always return to menu regardless of server stop success
+      onBackToMenu();
     }
-    onBackToMenu();
   };
 
   const handleLocalPlayersChange = (newLocalPlayers) => {
     setLocalPlayers(newLocalPlayers);
+  };
+
+  const handlePlayerMove = (moveData) => {
+    const connection = serverConnection();
+    if (connection && connection.isConnected) {
+      console.log('[MOVEMENT] Sending player movement:', moveData);
+      connection.send({
+        type: 'PLAYER_UPDATE',
+        data: {
+          x: moveData.x,
+          y: moveData.y,
+          playerId: moveData.playerId,
+          timestamp: Date.now()
+        }
+      });
+    }
+  };
+
+  const toggleReadyToFarm = () => {
+    const newReadyState = !readyToFarm();
+    setReadyToFarm(newReadyState);
+    console.log('[READY] Host ready state changed to:', newReadyState);
+    
+    const connection = serverConnection();
+    if (connection && connection.isConnected) {
+      connection.send({
+        type: 'HOST_READY',
+        data: {
+          ready: newReadyState,
+          timestamp: Date.now()
+        }
+      });
+    }
   };
 
   const copyJoinInfo = async (text) => {
@@ -235,16 +285,31 @@ function GameHost({ gameInfo, onBackToMenu }) {
           
           <div class="control-buttons">
             {gameState() === 'lobby' && (
-              <button 
-                class="btn btn-primary"
-                onClick={startGame}
-                disabled={players().length + localPlayers().filter(p => p.connected).length < 1}
-              >
-                {players().length + localPlayers().filter(p => p.connected).length < 1 
-                  ? '🌱 Waiting for Players...' 
-                  : `🚀 Start Farm (${players().length + localPlayers().filter(p => p.connected).length} players)`
-                }
-              </button>
+              <>
+                <button 
+                  class={`btn ${readyToFarm() ? 'btn-success' : 'btn-secondary'}`}
+                  onClick={toggleReadyToFarm}
+                  style={{
+                    'background-color': readyToFarm() ? '#2d5a2d' : '#6c757d',
+                    'margin-bottom': '1rem'
+                  }}
+                >
+                  {readyToFarm() ? '✅ Ready to Farm!' : '🌱 Ready to Farm?'}
+                </button>
+                
+                <button 
+                  class="btn btn-primary"
+                  onClick={startGame}
+                  disabled={players().length + localPlayers().filter(p => p.connected).length < 1 || !readyToFarm()}
+                >
+                  {players().length + localPlayers().filter(p => p.connected).length < 1 
+                    ? '🌱 Waiting for Players...' 
+                    : !readyToFarm()
+                    ? '🌱 Click Ready to Farm first'
+                    : `🚀 Start Farm (${players().length + localPlayers().filter(p => p.connected).length} players)`
+                  }
+                </button>
+              </>
             )}
             
             {gameState() === 'starting' && (
@@ -263,6 +328,16 @@ function GameHost({ gameInfo, onBackToMenu }) {
             )}
           </div>
         </div>
+
+        {/* Game Room - shown when playing */}
+        {gameState() === 'playing' && (
+          <GameRoom 
+            players={() => [...players(), ...localPlayers().filter(p => p.connected)]}
+            localPlayer={players().find(p => p.id === 'host') || null}
+            onPlayerMove={handlePlayerMove}
+            isHost={true}
+          />
+        )}
 
         <div class="instructions card">
           <h3>📋 How Players Join</h3>

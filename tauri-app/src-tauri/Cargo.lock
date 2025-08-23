@@ -3083,6 +3083,7 @@ version = "0.1.0"
 dependencies = [
  "futures-util",
  "local-ip-address",
+ "once_cell",
  "serde",
  "serde_json",
  "tauri",

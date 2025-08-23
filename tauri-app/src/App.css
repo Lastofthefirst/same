@@ -769,3 +769,199 @@ body {
     display: none;
   }
 }
+
+/* Game Room Styles */
+.game-room {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.game-room .game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.game-room .game-header h3 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.game-room .host-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.game-room .btn-small {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  min-height: auto;
+}
+
+.game-room .game-area {
+  border: 3px solid #8B4513;
+  background: linear-gradient(135deg, #90EE90 0%, #98FB98 50%, #90EE90 100%);
+  box-shadow: 
+    inset 0 0 20px rgba(0,0,0,0.1),
+    0 4px 8px rgba(0,0,0,0.2);
+  position: relative;
+  overflow: hidden;
+  margin: 1rem auto;
+}
+
+.game-room .game-player {
+  transition: transform 0.1s ease-out;
+  user-select: none;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.game-room .game-player:hover {
+  transform: scale(1.1);
+}
+
+.game-room .game-info {
+  font-family: monospace;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  backdrop-filter: blur(5px);
+  user-select: none;
+}
+
+.game-room .game-controls {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.game-room .game-controls h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1.1rem;
+}
+
+.game-room .controls-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.game-room .control-group {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.game-room .control-group strong {
+  display: block;
+  color: #22c55e;
+  margin-bottom: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.game-room .control-group span {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.game-room .players-list {
+  margin-top: 1.5rem;
+}
+
+.game-room .players-list h4 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.game-room .player-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.game-room .player-item .disconnected {
+  color: #fca5a5;
+  font-style: italic;
+}
+
+.game-room .player-indicator {
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Success button variant */
+.btn-success {
+  background: #22c55e;
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #16a34a;
+}
+
+/* Mobile responsiveness for game room */
+@media (max-width: 768px) {
+  .game-room .game-area {
+    width: 100% !important;
+    max-width: 350px;
+    height: 280px !important;
+    transform: scale(0.8);
+    transform-origin: center top;
+  }
+  
+  .game-room .controls-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  .game-room .game-header {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+  
+  .game-room .host-controls {
+    justify-content: center;
+  }
+  
+  .game-room .player-item {
+    padding: 0.5rem;
+    font-size: 0.9rem;
+  }
+  
+  .game-room .player-indicator {
+    width: 16px !important;
+    height: 16px !important;
+    margin-right: 8px !important;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .game-room .game-area {
+    max-width: 300px;
+    height: 240px !important;
+    transform: scale(0.7);
+  }
+  
+  .game-room .control-group {
+    padding: 0.5rem;
+  }
+  
+  .game-room .control-group strong {
+    font-size: 0.8rem;
+  }
+  
+  .game-room .control-group span {
+    font-size: 0.75rem;
+  }
+}

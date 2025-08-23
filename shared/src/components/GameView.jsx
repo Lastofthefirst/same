@@ -47,6 +47,29 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
       game.scene.scenes[0].performFarmingAction = performFarmingAction.bind(game.scene.scenes[0]);
       game.scene.scenes[0].showActionFeedback = showActionFeedback.bind(game.scene.scenes[0]);
       
+      // Set up message handling from outside the game
+      const gameScene = game.scene.scenes[0];
+      if (onMessage && typeof onMessage === 'function') {
+        // Store the original message handler
+        const originalHandler = onMessage;
+        
+        // Create a new handler that also updates the game
+        const enhancedHandler = (message) => {
+          // Call the original handler first
+          originalHandler(message);
+          
+          // Then handle game-specific updates
+          if (gameScene && gameScene.networkUpdate) {
+            gameScene.networkUpdate(message);
+          }
+        };
+        
+        // If we can override the message handler, do it
+        if (wsConnection && wsConnection.onMessage) {
+          wsConnection.onMessage = enhancedHandler;
+        }
+      }
+      
     } catch (error) {
       console.error('[GAME] Failed to initialize Phaser game:', error);
     }
@@ -136,8 +159,17 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
       
       // Set up network message handling
       this.networkUpdate = (message) => {
-        if (message.type === 'PLAYER_UPDATE' && message.player_id !== this.playerId) {
-          this.updateRemotePlayer(message.data);
+        console.log('[GAME] Received network message:', message);
+        if (message.type === 'PLAYER_UPDATE') {
+          // Check if this is not our own message
+          const senderId = message.player_id || message.data?.player_id;
+          if (senderId && senderId !== this.playerId) {
+            this.updateRemotePlayer({
+              player_id: senderId,
+              x: message.data?.x || message.data?.player?.x,
+              y: message.data?.y || message.data?.player?.y
+            });
+          }
         }
       };
       
@@ -251,7 +283,28 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
       strokeThickness: 2
     });
     
-    this.uiContainer.add([title, instructions]);
+    // Game status indicator
+    const status = this.add.text(20, 90, '✅ Game Running • Multiplayer Ready', {
+      fontSize: '16px',
+      fill: '#22c55e',
+      fontFamily: 'Arial',
+      stroke: '#000000',
+      strokeThickness: 2
+    });
+    
+    this.uiContainer.add([title, instructions, status]);
+    
+    // Add player info
+    this.playerInfo = this.add.text(20, window.innerHeight - 100, `Player: ${this.playerId}`, {
+      fontSize: '16px',
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      stroke: '#000000',
+      strokeThickness: 2
+    });
+    this.playerInfo.setScrollFactor(0);
+    
+    console.log('[GAME] UI created successfully');
   }
 
   // Handle window resize

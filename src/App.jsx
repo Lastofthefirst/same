@@ -1,49 +1,54 @@
 import { createSignal } from "solid-js";
-import logo from "./assets/logo.svg";
-import { invoke } from "@tauri-apps/api/core";
+import GameLobby from "./components/GameLobby";
+import GameContainer from "./components/GameContainer";
 import "./App.css";
 
 function App() {
-  const [greetMsg, setGreetMsg] = createSignal("");
-  const [name, setName] = createSignal("");
+  const [gameState, setGameState] = createSignal('lobby'); // 'lobby' or 'game'
+  const [networkManager, setNetworkManager] = createSignal(null);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name: name() }));
-  }
+  const handleGameStart = (manager) => {
+    setNetworkManager(manager);
+    setGameState('game');
+  };
+
+  const handleBackToLobby = () => {
+    setGameState('lobby');
+    setNetworkManager(null);
+  };
 
   return (
-    <main class="container">
-      <h1>Welcome to Tauri + Solid</h1>
-
-      <div class="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" class="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" class="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://solidjs.com" target="_blank">
-          <img src={logo} class="logo solid" alt="Solid logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and Solid logos to learn more.</p>
-
-      <form
-        class="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg()}</p>
+    <main style={{ 
+      width: '100vw', 
+      height: '100vh', 
+      margin: 0, 
+      padding: 0,
+      overflow: 'hidden'
+    }}>
+      {gameState() === 'lobby' ? (
+        <GameLobby onGameStart={handleGameStart} />
+      ) : (
+        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+          <button
+            onClick={handleBackToLobby}
+            style={{
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              'z-index': 1000,
+              padding: '10px 15px',
+              'background-color': '#666',
+              color: 'white',
+              border: 'none',
+              'border-radius': '5px',
+              cursor: 'pointer'
+            }}
+          >
+            ← Back to Lobby
+          </button>
+          <GameContainer networkManager={networkManager()} />
+        </div>
+      )}
     </main>
   );
 }

@@ -8,6 +8,11 @@ export default function GameLobby(props) {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal('');
   const [networkManager, setNetworkManager] = createSignal(null);
+  
+  // Check if running in Tauri (can host) or PWA (client only)
+  const isTauri = () => {
+    return window.__TAURI__ !== undefined;
+  };
 
   const startHosting = async () => {
     setLoading(true);
@@ -85,26 +90,33 @@ export default function GameLobby(props) {
           <h1 style={{ 'margin-bottom': '30px', color: '#90EE90' }}>
             🌾 Same Mouth - Cooperative Farming 🌾
           </h1>
+          {!isTauri() && (
+            <p style={{ 'margin-bottom': '20px', color: '#90EE90', 'font-size': '14px' }}>
+              PWA Client Version - Join games hosted by the Tauri app
+            </p>
+          )}
           <p style={{ 'margin-bottom': '30px', 'max-width': '500px', 'line-height': '1.5' }}>
             Work together to grow crops before being overwhelmed by pests and weeds!
           </p>
           
           <div style={{ display: 'flex', gap: '20px', 'flex-direction': 'column', 'align-items': 'center' }}>
-            <button 
-              onClick={() => setGameMode('host')}
-              style={{
-                padding: '15px 30px',
-                'font-size': '18px',
-                'background-color': '#4CAF50',
-                color: 'white',
-                border: 'none',
-                'border-radius': '8px',
-                cursor: 'pointer',
-                width: '200px'
-              }}
-            >
-              🏠 Host Game
-            </button>
+            {isTauri() && (
+              <button 
+                onClick={() => setGameMode('host')}
+                style={{
+                  padding: '15px 30px',
+                  'font-size': '18px',
+                  'background-color': '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  'border-radius': '8px',
+                  cursor: 'pointer',
+                  width: '200px'
+                }}
+              >
+                🏠 Host Game
+              </button>
+            )}
             
             <button 
               onClick={() => setGameMode('join')}

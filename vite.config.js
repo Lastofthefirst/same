@@ -1,11 +1,43 @@
 import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
+import { VitePWA } from 'vite-plugin-pwa';
 
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
-  plugins: [solid()],
+  plugins: [
+    solid(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
+      },
+      manifest: {
+        name: 'Same Mouth - Cooperative Farming',
+        short_name: 'Same Mouth',
+        description: 'A cooperative farming game for 2+ players',
+        theme_color: '#2a5d31',
+        background_color: '#2a5d31',
+        display: 'standalone',
+        orientation: 'landscape',
+        scope: '/',
+        start_url: '/',
+        icons: [
+          {
+            src: '/icon-192.svg',
+            sizes: '192x192',
+            type: 'image/svg+xml'
+          },
+          {
+            src: '/icon-512.svg',
+            sizes: '512x512',
+            type: 'image/svg+xml'
+          }
+        ]
+      }
+    })
+  ],
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

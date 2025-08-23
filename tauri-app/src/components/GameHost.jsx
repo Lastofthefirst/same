@@ -1,6 +1,6 @@
 import { createSignal, onMount, onCleanup } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
-import { createReconnectingWebSocket } from "@shared/utils/networkUtils";
+import { createReconnectingWebSocket, createMessage } from "@shared/utils/networkUtils";
 import { MultiPlayerManager, GameRoom } from "@shared/components";
 
 function GameHost({ gameInfo, onBackToMenu }) {
@@ -36,16 +36,18 @@ function GameHost({ gameInfo, onBackToMenu }) {
         onConnect: () => {
           console.log('[HOST] Connected to own server successfully');
           // Send host join message
-          ws.send({
-            type: 'PLAYER_JOIN',
-            data: {
+          const joinMessage = createMessage(
+            'PLAYER_JOIN',
+            {
               id: 'host',
               name: 'Host',
               x: 50.0,
               y: 50.0,
               connected: true
-            }
-          });
+            },
+            'host'
+          );
+          ws.send(joinMessage);
         },
         
         onMessage: (message) => {
@@ -91,13 +93,15 @@ function GameHost({ gameInfo, onBackToMenu }) {
     if (connection && connection.isConnected) {
       setGameState('starting');
       
-      connection.send({
-        type: 'GAME_START',
-        data: {
+      const message = createMessage(
+        'GAME_START',
+        {
           startedBy: 'host',
           timestamp: Date.now()
-        }
-      });
+        },
+        'host'  // Host player ID
+      );
+      connection.send(message);
     }
   };
 
@@ -132,15 +136,15 @@ function GameHost({ gameInfo, onBackToMenu }) {
     const connection = serverConnection();
     if (connection && connection.isConnected) {
       console.log('[MOVEMENT] Sending player movement:', moveData);
-      connection.send({
-        type: 'PLAYER_UPDATE',
-        data: {
+      const message = createMessage(
+        'PLAYER_UPDATE',
+        {
           x: moveData.x,
-          y: moveData.y,
-          playerId: moveData.playerId,
-          timestamp: Date.now()
-        }
-      });
+          y: moveData.y
+        },
+        'host'  // Host player ID
+      );
+      connection.send(message);
     }
   };
 
@@ -151,13 +155,15 @@ function GameHost({ gameInfo, onBackToMenu }) {
     
     const connection = serverConnection();
     if (connection && connection.isConnected) {
-      connection.send({
-        type: 'HOST_READY',
-        data: {
+      const message = createMessage(
+        'HOST_READY',
+        {
           ready: newReadyState,
           timestamp: Date.now()
-        }
-      });
+        },
+        'host'  // Host player ID
+      );
+      connection.send(message);
     }
   };
 
@@ -340,7 +346,7 @@ function GameHost({ gameInfo, onBackToMenu }) {
         {gameState() === 'playing' && (
           <GameRoom 
             players={() => [...players(), ...localPlayers().filter(p => p.connected)]}
-            localPlayer={players().find(p => p.id === 'host') || null}
+            localPlayer={players().find(p => p.id === 'host') || { id: 'host', name: 'Host', x: 50, y: 50 }}
             onPlayerMove={handlePlayerMove}
             isHost={true}
           />

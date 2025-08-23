@@ -8,24 +8,27 @@ export const GAME_PORT = 3847;
 // Message types for game communication
 export const MESSAGE_TYPES = {
   // Connection
-  PLAYER_JOIN: 'player_join',
-  PLAYER_LEAVE: 'player_leave',
-  PLAYER_LIST: 'player_list',
+  PLAYER_JOIN: 'PLAYER_JOIN',
+  PLAYER_LEAVE: 'PLAYER_LEAVE',
+  PLAYER_LIST: 'PLAYER_LIST',
   
   // Game state
-  GAME_STATE: 'game_state',
-  PLAYER_UPDATE: 'player_update',
-  GAME_START: 'game_start',
-  GAME_END: 'game_end',
+  GAME_STATE: 'GAME_STATE',
+  PLAYER_UPDATE: 'PLAYER_UPDATE',
+  GAME_START: 'GAME_START',
+  GAME_END: 'GAME_END',
   
   // Lobby
-  LOBBY_INFO: 'lobby_info',
-  ROOM_LIST: 'room_list',
+  LOBBY_INFO: 'LOBBY_INFO',
+  ROOM_LIST: 'ROOM_LIST',
+  
+  // Host actions
+  HOST_READY: 'HOST_READY',
   
   // Error handling
-  ERROR: 'error',
-  PING: 'ping',
-  PONG: 'pong'
+  ERROR: 'ERROR',
+  PING: 'PING',
+  PONG: 'PONG'
 };
 
 /**
@@ -39,7 +42,7 @@ export function createMessage(type, data = {}, playerId = null) {
   return {
     type,
     data,
-    playerId,
+    player_id: playerId,  // Changed to match Tauri server expectations
     timestamp: Date.now(),
     id: generateMessageId()
   };
@@ -150,6 +153,8 @@ export function createReconnectingWebSocket(url, options = {}) {
   let ws = null;
   let reconnectAttempts = 0;
   let isIntentionallyClosed = false;
+  // Array to hold additional message handlers
+  let additionalMessageHandlers = [];
   
   const connect = () => {
     try {
@@ -163,7 +168,15 @@ export function createReconnectingWebSocket(url, options = {}) {
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
+          // Call the primary message handler
           onMessage(message);
+          
+          // Call additional message handlers
+          additionalMessageHandlers.forEach(handler => {
+            if (typeof handler === 'function') {
+              handler(message);
+            }
+          });
         } catch (error) {
           onError(new Error('Failed to parse message'));
         }
@@ -212,6 +225,18 @@ export function createReconnectingWebSocket(url, options = {}) {
     
     get isConnected() {
       return ws && ws.readyState === WebSocket.OPEN;
+    },
+    
+    // Method to add additional message handlers
+    addMessageHandler(handler) {
+      if (typeof handler === 'function') {
+        additionalMessageHandlers.push(handler);
+      }
+    },
+    
+    // Method to remove message handlers
+    removeMessageHandler(handler) {
+      additionalMessageHandlers = additionalMessageHandlers.filter(h => h !== handler);
     }
   };
 }

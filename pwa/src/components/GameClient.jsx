@@ -1,5 +1,5 @@
 import { createSignal, onMount, onCleanup, createEffect } from "solid-js";
-import { createReconnectingWebSocket, generatePlayerId } from "@shared/utils/networkUtils";
+import { createReconnectingWebSocket, generatePlayerId, createMessage } from "@shared/utils/networkUtils";
 import GameView from "./GameView";
 
 function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnectionError, onStartGame, onLeaveGame }) {
@@ -37,16 +37,18 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
         setConnectionStatus('connected');
         
         // Send join message
-        ws.send({
-          type: 'PLAYER_JOIN',
-          data: {
+        const joinMessage = createMessage(
+          'PLAYER_JOIN',
+          {
             id: playerId(),
             name: `Player ${Math.floor(Math.random() * 1000)}`,
             x: 0.0,
             y: 0.0,
             connected: true
-          }
-        });
+          },
+          playerId()
+        );
+        ws.send(joinMessage);
         
         onConnectionSuccess();
       },
@@ -87,6 +89,11 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
         onStartGame();
         break;
         
+      case 'PLAYER_UPDATE':
+        // Handle player position updates
+        // These will be handled by the GameView component
+        break;
+        
       case 'ERROR':
         onConnectionError(new Error(message.data.message || 'Server error'));
         break;
@@ -103,13 +110,8 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
   const sendMessage = (type, data = {}) => {
     const ws = wsConnection();
     if (ws && ws.isConnected) {
-      ws.send({
-        type,
-        data: {
-          ...data,
-          playerId: playerId()
-        }
-      });
+      const message = createMessage(type, data, playerId());
+      ws.send(message);
     }
   };
 
@@ -162,10 +164,11 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
 
       {gameState === 'playing' ? (
         <GameView
-          connectionInfo={connectionInfo}
+          connectionInfo={connectionInfo()}
           wsConnection={wsConnection()}
           playerId={playerId()}
           onLeaveGame={handleLeave}
+          onMessage={handleMessage}
         />
       ) : (
         <div class="lobby-view">
@@ -202,7 +205,7 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
               {connectionStatus() === 'connected' && (
                 <button 
                   class="btn" 
-                  onClick={() => sendMessage('REQUEST_START')}
+                  onClick={() => sendMessage('GAME_START')}
                   disabled={players().length < 1}
                 >
                   🌱 Ready to Farm

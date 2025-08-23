@@ -50,6 +50,7 @@ function GameRoom({
       }
 
       if (newX !== pos.x || newY !== pos.y) {
+        console.log('[GAMEROOM] Updating local position:', { old: pos, new: { x: newX, y: newY } });
         setLocalPosition({ x: newX, y: newY });
         
         // Notify parent about position change
@@ -90,6 +91,8 @@ function GameRoom({
   const renderPlayer = (player) => {
     const isLocal = localPlayer && player.id === localPlayer.id;
     const position = isLocal ? localPosition() : { x: player.x || 0, y: player.y || 0 };
+    
+    console.log('[GAMEROOM] Rendering player:', { player, isLocal, position, localPlayer });
     
     return (
       <div

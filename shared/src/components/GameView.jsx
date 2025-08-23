@@ -38,37 +38,44 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
       const game = new Phaser.Game(config);
       setPhaserGame(game);
       
-      // Bind functions to game scenes
-      game.scene.scenes[0].createFarmMap = createFarmMap.bind(game.scene.scenes[0]);
-      game.scene.scenes[0].createSpecialTiles = createSpecialTiles.bind(game.scene.scenes[0]);
-      game.scene.scenes[0].createUI = createUI.bind(game.scene.scenes[0]);
-      game.scene.scenes[0].handleResize = handleResize.bind(game.scene.scenes[0]);
-      game.scene.scenes[0].updateRemotePlayer = updateRemotePlayer.bind(game.scene.scenes[0]);
-      game.scene.scenes[0].performFarmingAction = performFarmingAction.bind(game.scene.scenes[0]);
-      game.scene.scenes[0].showActionFeedback = showActionFeedback.bind(game.scene.scenes[0]);
-      
       // Set up message handling from outside the game
-      const gameScene = game.scene.scenes[0];
-      if (onMessage && typeof onMessage === 'function') {
-        // Store the original message handler
-        const originalHandler = onMessage;
-        
-        // Create a new handler that also updates the game
-        const enhancedHandler = (message) => {
-          // Call the original handler first
-          originalHandler(message);
+      const waitForScene = setInterval(() => {
+        if (game.scene.scenes[0]) {
+          clearInterval(waitForScene);
           
-          // Then handle game-specific updates
-          if (gameScene && gameScene.networkUpdate) {
-            gameScene.networkUpdate(message);
+          // Bind functions to game scenes
+          game.scene.scenes[0].createFarmMap = createFarmMap.bind(game.scene.scenes[0]);
+          game.scene.scenes[0].createSpecialTiles = createSpecialTiles.bind(game.scene.scenes[0]);
+          game.scene.scenes[0].createUI = createUI.bind(game.scene.scenes[0]);
+          game.scene.scenes[0].handleResize = handleResize.bind(game.scene.scenes[0]);
+          game.scene.scenes[0].updateRemotePlayer = updateRemotePlayer.bind(game.scene.scenes[0]);
+          game.scene.scenes[0].performFarmingAction = performFarmingAction.bind(game.scene.scenes[0]);
+          game.scene.scenes[0].showActionFeedback = showActionFeedback.bind(game.scene.scenes[0]);
+          
+          // Set up message handling from outside the game
+          const gameScene = game.scene.scenes[0];
+          if (onMessage && typeof onMessage === 'function') {
+            // Store the original message handler
+            const originalHandler = onMessage;
+            
+            // Create a new handler that also updates the game
+            const enhancedHandler = (message) => {
+              // Call the original handler first
+              originalHandler(message);
+              
+              // Then handle game-specific updates
+              if (gameScene && gameScene.networkUpdate) {
+                gameScene.networkUpdate(message);
+              }
+            };
+            
+            // If we can override the message handler, do it
+            if (wsConnection && wsConnection.onMessage) {
+              wsConnection.onMessage = enhancedHandler;
+            }
           }
-        };
-        
-        // If we can override the message handler, do it
-        if (wsConnection && wsConnection.onMessage) {
-          wsConnection.onMessage = enhancedHandler;
         }
-      }
+      }, 10);
       
     } catch (error) {
       console.error('[GAME] Failed to initialize Phaser game:', error);

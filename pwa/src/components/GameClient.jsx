@@ -8,6 +8,7 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
   const [playerId, setPlayerId] = createSignal(generatePlayerId());
   const [lobbyInfo, setLobbyInfo] = createSignal(null);
   const [connectionStatus, setConnectionStatus] = createSignal('connecting');
+  const [hasConnected, setHasConnected] = createSignal(false);
 
   console.log('[GAMECLIENT] Initialized with gameState:', gameState);
 
@@ -30,8 +31,13 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
       console.error('[GAMECLIENT] No connection info available in onMount');
       return;
     }
-    console.log('[GAMECLIENT] onMount called, connecting to game');
-    connectToGame();
+    if (!hasConnected()) {
+      console.log('[GAMECLIENT] onMount called, connecting to game');
+      connectToGame();
+      setHasConnected(true);
+    } else {
+      console.log('[GAMECLIENT] onMount called but already connected, skipping');
+    }
   });
 
   onCleanup(() => {
@@ -220,17 +226,24 @@ function GameClient({ connectionInfo, gameState, onConnectionSuccess, onConnecti
         if (state === 'playing') {
           console.log('[GAMECLIENT] Rendering GameView component');
           try {
+            const connInfo = connectionInfo;
+            const wsConn = wsConnection();
+            const pId = playerId();
+            
             console.log('[GAMECLIENT] Props to pass to GameView:', {
-              connectionInfo: connectionInfo(),
-              wsConnection: wsConnection(),
-              playerId: playerId()
+              connectionInfo: connInfo,
+              wsConnection: wsConn,
+              playerId: pId,
+              connectionInfoType: typeof connInfo,
+              wsConnectionType: typeof wsConn,
+              playerIdType: typeof pId
             });
             
             const gameView = (
               <GameView
-                connectionInfo={connectionInfo()}
-                wsConnection={wsConnection()}
-                playerId={playerId()}
+                connectionInfo={connInfo}
+                wsConnection={wsConn}
+                playerId={pId}
                 onLeaveGame={handleLeave}
                 onMessage={handleMessage}
               />

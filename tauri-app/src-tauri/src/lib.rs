@@ -110,7 +110,9 @@ async fn handle_connection(stream: TcpStream, game_state: GameState, connections
                         match game_message.r#type.as_str() {
                             "PLAYER_JOIN" => {
                                 println!("Received PLAYER_JOIN message: {:?}", game_message.data);
-                                if let Ok(player_data) = serde_json::from_value::<Player>(game_message.data) {
+                                // Clone the data to avoid move issues
+                                let player_data_value = game_message.data.clone();
+                                if let Ok(player_data) = serde_json::from_value::<Player>(player_data_value) {
                                     println!("Successfully parsed player data: {:?}", player_data);
                                     player_id = Some(player_data.id.clone());
                                     

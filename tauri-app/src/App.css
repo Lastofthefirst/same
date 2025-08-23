@@ -277,6 +277,11 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.player-card.local-player {
+  border-left: 3px solid #22c55e;
+  background: rgba(34, 197, 94, 0.1);
+}
+
 .player-info {
   display: flex;
   justify-content: space-between;
@@ -422,6 +427,7 @@ body {
   }
 }
 
+/* Mobile-First Design Improvements */
 @media (max-width: 767px) {
   .container {
     padding: 0.5rem;
@@ -432,7 +438,17 @@ body {
   }
   
   .menu h1 {
-    font-size: 2rem;
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+  }
+  
+  .menu h2 {
+    font-size: 1.25rem;
+  }
+  
+  .subtitle {
+    font-size: 1rem;
+    margin-bottom: 1.5rem;
   }
   
   .host-header {
@@ -441,10 +457,15 @@ body {
     text-align: center;
   }
   
+  .host-header h2 {
+    font-size: 1.5rem;
+  }
+  
   .connection-info .info-row {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
+    padding: 1rem;
   }
   
   .copy-field {
@@ -454,20 +475,297 @@ body {
   
   .join-url {
     word-break: break-all;
+    font-size: 0.75rem;
   }
   
   .card {
     padding: 1.5rem;
+    margin: 0.75rem 0;
   }
   
   .menu-buttons,
   .form-buttons {
     flex-direction: column;
     align-items: center;
+    gap: 0.75rem;
   }
   
   .btn {
     width: 100%;
-    max-width: 250px;
+    max-width: 280px;
+    padding: 1rem 1.5rem;
+    font-size: 1.1rem;
+    /* Better touch targets */
+    min-height: 48px;
+    touch-action: manipulation;
+  }
+  
+  .btn-copy {
+    min-height: 36px;
+    padding: 0.5rem 0.75rem;
+  }
+  
+  /* Improved form controls for mobile */
+  .form-group input {
+    padding: 1rem;
+    font-size: 1.1rem;
+    min-height: 48px;
+    border-radius: 0.75rem;
+  }
+  
+  /* Better spacing for mobile */
+  .network-info,
+  .info-section {
+    margin: 1rem 0;
+    padding: 1.25rem;
+  }
+  
+  /* Mobile-friendly player list */
+  .players-section {
+    order: 1;
+  }
+  
+  .game-controls {
+    order: 2;
+  }
+  
+  .instructions {
+    order: 3;
+  }
+  
+  .player-card {
+    padding: 0.75rem;
+  }
+  
+  /* Touch-friendly game view */
+  .game-view {
+    padding: 0.5rem;
+  }
+  
+  .game-header {
+    margin-bottom: 1rem;
+  }
+  
+  .game-header h3 {
+    font-size: 1.25rem;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .container {
+    padding: 0.25rem;
+  }
+  
+  .menu {
+    padding: 0.5rem;
+  }
+  
+  .menu h1 {
+    font-size: 2rem;
+  }
+  
+  .card {
+    padding: 1rem;
+    border-radius: 0.75rem;
+  }
+  
+  .connection-info .info-row {
+    padding: 0.75rem;
+  }
+  
+  .network-info,
+  .info-section {
+    padding: 1rem;
+  }
+  
+  /* Ensure text doesn't get too small */
+  .farm-code {
+    font-size: 1rem;
+    word-break: break-word;
+  }
+  
+  .join-url {
+    font-size: 0.7rem;
+  }
+}
+
+/* Landscape orientation improvements for mobile */
+@media (max-width: 767px) and (orientation: landscape) {
+  .menu {
+    padding: 0.5rem 1rem;
+  }
+  
+  .menu h1 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .subtitle {
+    margin-bottom: 1rem;
+  }
+  
+  .info-section {
+    margin: 1rem 0;
+  }
+  
+  .host-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  
+  .connection-info {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Multi-Player Manager Styles */
+.multi-player-manager {
+  margin: 1rem 0;
+}
+
+.local-players-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.local-player-card {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+
+.player-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.player-name-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  color: white;
+  font-size: 0.9rem;
+  min-width: 120px;
+}
+
+.player-name-input:focus {
+  outline: none;
+  border-color: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.1);
+}
+
+.player-name-input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.player-status {
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.status-connected {
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.btn-connect {
+  background: #22c55e;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-connect:hover:not(:disabled) {
+  background: #16a34a;
+  transform: translateY(-1px);
+}
+
+.btn-connect:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-remove {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-remove:hover {
+  background: rgba(239, 68, 68, 0.3);
+  transform: translateY(-1px);
+}
+
+.key-bindings {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  line-height: 1.4;
+}
+
+.key-bindings strong {
+  color: #22c55e;
+}
+
+.add-player-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+/* Large screen optimizations for multi-player */
+@media (min-width: 1024px) {
+  .multi-player-manager {
+    order: 2;
+  }
+  
+  .local-players-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  
+  .local-player-card {
+    min-height: 100px;
+  }
+  
+  .player-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .player-name-input {
+    min-width: 100px;
+  }
+}
+
+/* Hide multi-player manager on mobile/small screens */
+@media (max-width: 1023px) {
+  .multi-player-manager {
+    display: none;
   }
 }

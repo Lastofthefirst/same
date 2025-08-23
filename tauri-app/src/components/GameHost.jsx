@@ -1,10 +1,12 @@
 import { createSignal, onMount, onCleanup } from "solid-js";
 import { createReconnectingWebSocket } from "@shared/utils/networkUtils";
+import { MultiPlayerManager } from "@shared/components";
 
 function GameHost({ gameInfo, onBackToMenu }) {
   const [players, setPlayers] = createSignal([]);
   const [gameState, setGameState] = createSignal('lobby'); // 'lobby', 'starting', 'playing'
   const [serverConnection, setServerConnection] = createSignal(null);
+  const [localPlayers, setLocalPlayers] = createSignal([]);
 
   onMount(() => {
     // Connect to our own server to monitor the game
@@ -98,6 +100,10 @@ function GameHost({ gameInfo, onBackToMenu }) {
     onBackToMenu();
   };
 
+  const handleLocalPlayersChange = (newLocalPlayers) => {
+    setLocalPlayers(newLocalPlayers);
+  };
+
   const copyJoinInfo = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -175,9 +181,9 @@ function GameHost({ gameInfo, onBackToMenu }) {
         </div>
 
         <div class="players-section card">
-          <h3>👥 Players ({players().length})</h3>
+          <h3>👥 Players ({players().length + localPlayers().filter(p => p.connected).length})</h3>
           
-          {players().length === 0 ? (
+          {players().length === 0 && localPlayers().filter(p => p.connected).length === 0 ? (
             <div class="empty-state">
               <p>🌱 Waiting for players to join...</p>
               <p style="font-size: 0.875rem; opacity: 0.7;">
@@ -186,6 +192,7 @@ function GameHost({ gameInfo, onBackToMenu }) {
             </div>
           ) : (
             <div class="players-list">
+              {/* Show remote players */}
               {players().map((player) => (
                 <div class="player-card" key={player.id}>
                   <div class="player-info">
@@ -198,9 +205,30 @@ function GameHost({ gameInfo, onBackToMenu }) {
                   </div>
                 </div>
               ))}
+              
+              {/* Show connected local players */}
+              {localPlayers().filter(p => p.connected).map((player) => (
+                <div class="player-card local-player" key={player.id}>
+                  <div class="player-info">
+                    <span class="player-name">
+                      {player.name} (Local)
+                    </span>
+                    <span class="player-status">
+                      🟢 Connected
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
+
+        <MultiPlayerManager
+          connectionInfo={gameInfo}
+          wsConnection={serverConnection()}
+          onPlayersChange={handleLocalPlayersChange}
+          maxPlayers={4}
+        />
 
         <div class="game-controls card">
           <h3>🎮 Game Controls</h3>
@@ -210,11 +238,11 @@ function GameHost({ gameInfo, onBackToMenu }) {
               <button 
                 class="btn btn-primary"
                 onClick={startGame}
-                disabled={players().length < 1}
+                disabled={players().length + localPlayers().filter(p => p.connected).length < 1}
               >
-                {players().length < 1 
+                {players().length + localPlayers().filter(p => p.connected).length < 1 
                   ? '🌱 Waiting for Players...' 
-                  : `🚀 Start Farm (${players().length} players)`
+                  : `🚀 Start Farm (${players().length + localPlayers().filter(p => p.connected).length} players)`
                 }
               </button>
             )}

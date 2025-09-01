@@ -87,6 +87,26 @@ function App() {
                 <p>Numpad 8456 - Move</p>
                 <p>Numpad 7 - Action</p>
               </div>
+              <div class="player-controls">
+                <h4>Player 5</h4>
+                <p>TFGH - Move</p>
+                <p>R - Action</p>
+              </div>
+              <div class="player-controls">
+                <h4>Player 6</h4>
+                <p>O;L' - Move</p>
+                <p>P - Action</p>
+              </div>
+              <div class="player-controls">
+                <h4>Player 7</h4>
+                <p>8546 - Move</p>
+                <p>7 - Action</p>
+              </div>
+              <div class="player-controls">
+                <h4>Player 8</h4>
+                <p>YVBN - Move</p>
+                <p>M - Action</p>
+              </div>
             </div>
             
             <h3>Gameplay</h3>

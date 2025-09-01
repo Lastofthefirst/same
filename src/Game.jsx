@@ -124,7 +124,7 @@ const PLAYER_CONTROLS = [
   { // Player 6  
     up: 'KeyO',
     down: 'Semicolon',
-    left: 'KeyK',
+    left: 'KeyL',
     right: 'Quote',
     action: 'KeyP'
   },
@@ -195,6 +195,12 @@ class GameScene extends Phaser.Scene {
     
     console.log(`Creating ${mapSize}x${mapSize} map for ${gameConfig.players} players on ${gameConfig.difficulty} difficulty`);
     
+    // Set up camera
+    const worldWidth = mapSize * TILE_SIZE;
+    const worldHeight = mapSize * TILE_SIZE;
+    this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
+    this.cameras.main.setZoom(Math.min(1200 / worldWidth, 800 / worldHeight));
+    
     // Generate the game world
     this.generateMap(difficulty);
     this.createPlayers(gameConfig.players);
@@ -206,6 +212,9 @@ class GameScene extends Phaser.Scene {
     
     // Start game loop timers
     this.startGameTimers(difficulty);
+    
+    // Set camera to follow center of players
+    this.updateCameraFocus();
   }
 
   generateMap(difficulty) {
@@ -417,8 +426,87 @@ class GameScene extends Phaser.Scene {
   setupInput() {
     // Create keyboard input for all players
     this.input.keyboard.on('keydown', (event) => {
+      // Handle pause
+      if (event.code === 'KeyP') {
+        this.togglePause();
+        return;
+      }
+      
+      // Handle game end vote
+      if (event.code === 'Escape') {
+        this.handleEndGameVote();
+        return;
+      }
+      
       this.handlePlayerInput(event.code);
     });
+  }
+
+  togglePause() {
+    this.gameState.isPaused = !this.gameState.isPaused;
+    if (this.gameState.isPaused) {
+      this.physics.pause();
+      this.scene.pause();
+      console.log('Game paused');
+    } else {
+      this.physics.resume();
+      this.scene.resume();
+      console.log('Game resumed');
+    }
+  }
+
+  handleEndGameVote() {
+    // Simple implementation - any player can end the game
+    // In a full implementation, you might want voting
+    this.endGame();
+  }
+
+  endGame() {
+    this.gameState.isGameOver = true;
+    this.physics.pause();
+    
+    // Show end game screen
+    const centerX = this.cameras.main.scrollX + this.cameras.main.width / 2;
+    const centerY = this.cameras.main.scrollY + this.cameras.main.height / 2;
+    
+    // Background
+    this.add.rectangle(centerX, centerY, 400, 300, 0x000000, 0.8);
+    
+    // Title
+    this.add.text(centerX, centerY - 100, 'Game Complete!', {
+      fontSize: '32px',
+      fill: '#8fbc8f',
+      fontWeight: 'bold'
+    }).setOrigin(0.5);
+    
+    // Stats
+    this.add.text(centerX, centerY - 50, `Final Score: ${this.gameState.score}`, {
+      fontSize: '24px',
+      fill: '#ffffff'
+    }).setOrigin(0.5);
+    
+    this.add.text(centerX, centerY - 20, `Crops Harvested: ${this.gameState.harvestedCrops}`, {
+      fontSize: '20px',
+      fill: '#ffffff'
+    }).setOrigin(0.5);
+    
+    this.add.text(centerX, centerY + 10, `Pests Controlled: ${this.gameState.pestsControlled || 0}`, {
+      fontSize: '20px',
+      fill: '#ffffff'
+    }).setOrigin(0.5);
+    
+    this.add.text(centerX, centerY + 50, 'Press R to return to menu', {
+      fontSize: '16px',
+      fill: '#cccccc'
+    }).setOrigin(0.5);
+    
+    // Listen for return to menu
+    this.input.keyboard.once('keydown-R', () => {
+      const onReturn = this.registry.get('onReturn');
+      if (onReturn) onReturn();
+    });
+    
+    console.log('Game ended with score:', this.gameState.score);
   }
 
   handlePlayerInput(keyCode) {
@@ -475,6 +563,23 @@ class GameScene extends Phaser.Scene {
     // Update direction indicator
     player.directionIndicator.x = newX * TILE_SIZE + TILE_SIZE/2;
     player.directionIndicator.y = newY * TILE_SIZE + TILE_SIZE/2 - 15;
+    
+    // Update camera focus
+    this.updateCameraFocus();
+  }
+
+  updateCameraFocus() {
+    // Center camera on average position of all players
+    let avgX = 0, avgY = 0;
+    this.players.forEach(player => {
+      avgX += player.x;
+      avgY += player.y;
+    });
+    avgX = (avgX / this.players.length) * TILE_SIZE + TILE_SIZE/2;
+    avgY = (avgY / this.players.length) * TILE_SIZE + TILE_SIZE/2;
+    
+    this.cameras.main.scrollX = avgX - this.cameras.main.width / 2;
+    this.cameras.main.scrollY = avgY - this.cameras.main.height / 2;
   }
 
   handlePlayerAction(player) {
@@ -503,23 +608,28 @@ class GameScene extends Phaser.Scene {
         type: 'crop',
         stage: 0, // 0: planted, 1: growing, 2: mature
         plantTime: this.time.now,
-        needsWater: true
+        needsWater: true,
+        wateredCount: 0
       };
       
       // Update tile visual
       if (tile.sprite.emoji) {
         tile.sprite.emoji.setText('🌰'); // Seed
       }
-    } else if (tile.content.type === 'crop' && tile.content.needsWater) {
+      console.log(`Player ${player.id + 1} planted a crop at (${tile.x}, ${tile.y})`);
+      
+    } else if (tile.content.type === 'crop' && tile.content.needsWater && player.role === 'farmer') {
       // Water crop
       tile.content.needsWater = false;
-      tile.content.stage = Math.min(2, tile.content.stage + 1);
+      tile.content.wateredCount++;
       
       // Update visual based on stage
-      const stageEmojis = ['🌰', '🌾', '🌽'];
+      const stageEmojis = ['🌱', '🌾', '🌽'];
       if (tile.sprite.emoji) {
-        tile.sprite.emoji.setText(stageEmojis[tile.content.stage]);
+        tile.sprite.emoji.setText(stageEmojis[Math.min(tile.content.stage + 1, 2)]);
       }
+      console.log(`Player ${player.id + 1} watered a crop at (${tile.x}, ${tile.y})`);
+      
     } else if (tile.content.type === 'crop' && tile.content.stage === 2) {
       // Harvest crop
       player.inventory.push('crop');
@@ -529,6 +639,17 @@ class GameScene extends Phaser.Scene {
       if (tile.sprite.emoji) {
         tile.sprite.emoji.setText('🌱');
       }
+      console.log(`Player ${player.id + 1} harvested a crop at (${tile.x}, ${tile.y})`);
+      
+    } else if (tile.content.type === 'weed') {
+      // Clear weed
+      tile.content = null;
+      if (tile.sprite.emoji) {
+        tile.sprite.emoji.setText('🌱');
+      }
+      // Remove from weeds array
+      this.weeds = this.weeds.filter(weed => !(weed.x === tile.x && weed.y === tile.y));
+      console.log(`Player ${player.id + 1} cleared a weed at (${tile.x}, ${tile.y})`);
     }
   }
 
@@ -539,13 +660,28 @@ class GameScene extends Phaser.Scene {
       player.inventory = player.inventory.filter(item => item !== 'crop');
       this.gameState.harvestedCrops += cropCount;
       this.gameState.score += cropCount * 10;
+      console.log(`Player ${player.id + 1} deposited ${cropCount} crops. Total: ${this.gameState.harvestedCrops}`);
     }
   }
 
   handleRoleChange(player, tile) {
     const roles = ['farmer', 'waterer', 'harvester', 'pest_controller'];
     const currentIndex = roles.indexOf(player.role);
-    player.role = roles[(currentIndex + 1) % roles.length];
+    const newRole = roles[(currentIndex + 1) % roles.length];
+    player.role = newRole;
+    console.log(`Player ${player.id + 1} changed role to ${newRole}`);
+    
+    // Update player appearance based on role
+    const roleEmojis = {
+      farmer: ['👨‍🌾', '👩‍🌾'], 
+      waterer: ['🧑‍💧', '👩‍💧'],
+      harvester: ['👨‍🔧', '👩‍🔧'],
+      pest_controller: ['👨‍💼', '👩‍💼']
+    };
+    
+    const genderIndex = player.id % 2;
+    const newEmoji = roleEmojis[newRole] ? roleEmojis[newRole][genderIndex] : '👨‍🌾';
+    player.sprite.setText(newEmoji);
   }
 
   handlePestDrop(player, tile) {
@@ -553,6 +689,9 @@ class GameScene extends Phaser.Scene {
     const pestCount = player.inventory.filter(item => item === 'pest').length;
     if (pestCount > 0) {
       player.inventory = player.inventory.filter(item => item !== 'pest');
+      this.gameState.score += pestCount * 5; // Bonus for pest control
+      this.gameState.pestsControlled = (this.gameState.pestsControlled || 0) + pestCount;
+      console.log(`Player ${player.id + 1} dropped ${pestCount} pests for disposal`);
     }
   }
 
@@ -612,6 +751,14 @@ class GameScene extends Phaser.Scene {
   }
 
   startGameTimers(difficulty) {
+    // Crop growth timer
+    this.time.addEvent({
+      delay: difficulty.crop_growth_base_time * 1000, // Convert to milliseconds
+      callback: this.updateCrops,
+      callbackScope: this,
+      loop: true
+    });
+    
     // Pest movement timer
     this.time.addEvent({
       delay: 3000, // Move every 3 seconds
@@ -631,10 +778,50 @@ class GameScene extends Phaser.Scene {
     // Pest spawning timer
     this.time.addEvent({
       delay: 10000 / difficulty.pest_spawn_rate, // Spawn rate based on difficulty
-      callback: this.spawnPest,
+      callback: () => {
+        if (this.pests.length < difficulty.initial_pest_count * 2) {
+          this.spawnPest();
+        }
+      },
       callbackScope: this,
       loop: true
     });
+    
+    // Weed spawning timer
+    this.time.addEvent({
+      delay: 15000, // Spawn new weeds every 15 seconds
+      callback: () => {
+        if (this.weeds.length < difficulty.initial_weed_count * 2) {
+          this.spawnWeed();
+        }
+      },
+      callbackScope: this,
+      loop: true
+    });
+  }
+
+  updateCrops() {
+    // Update crop growth
+    for (let y = 0; y < this.mapSize; y++) {
+      for (let x = 0; x < this.mapSize; x++) {
+        const tile = this.tiles[y][x];
+        if (tile.content && tile.content.type === 'crop') {
+          const crop = tile.content;
+          
+          // Check if crop should advance stage
+          if (!crop.needsWater && crop.stage < 2) {
+            crop.stage++;
+            crop.needsWater = true; // Needs water for next stage
+            
+            // Update visual
+            const stageEmojis = ['🌰', '🌾', '🌽'];
+            if (tile.sprite.emoji) {
+              tile.sprite.emoji.setText(stageEmojis[crop.stage]);
+            }
+          }
+        }
+      }
+    }
   }
 
   movePests() {
@@ -653,7 +840,30 @@ class GameScene extends Phaser.Scene {
         pest.y = newY;
         pest.sprite.x = newX * TILE_SIZE + TILE_SIZE/2;
         pest.sprite.y = newY * TILE_SIZE + TILE_SIZE/2;
+        
+        // Check if pest reached a crop
+        const tile = this.tiles[newY][newX];
+        if (tile.content && tile.content.type === 'crop') {
+          // Pest eats the crop
+          tile.content = null;
+          if (tile.sprite.emoji) {
+            tile.sprite.emoji.setText('🌱');
+          }
+          console.log(`Pest ate crop at (${newX}, ${newY})`);
+        }
       }
+      
+      // Check for player interactions
+      this.players.forEach(player => {
+        if (player.x === pest.x && player.y === pest.y && player.role === 'pest_controller') {
+          // Player catches pest
+          player.inventory.push('pest');
+          // Remove pest from game
+          pest.sprite.destroy();
+          this.pests = this.pests.filter(p => p !== pest);
+          console.log(`Player ${player.id + 1} caught a pest!`);
+        }
+      });
     });
   }
 
@@ -703,6 +913,29 @@ class GameScene extends Phaser.Scene {
   update() {
     // Update game state
     this.registry.set('gameState', this.gameState);
+    
+    // Check end game conditions
+    if (!this.gameState.isGameOver) {
+      this.checkEndGameConditions();
+    }
+  }
+
+  checkEndGameConditions() {
+    // End game if overwhelmed by pests/weeds
+    const totalThreats = this.pests.length + this.weeds.length;
+    const threatThreshold = this.players.length * 15; // 15 threats per player
+    
+    if (totalThreats > threatThreshold) {
+      console.log('Game over: Overwhelmed by threats!');
+      this.endGame();
+    }
+    
+    // Victory condition: harvest enough crops relative to player count
+    const victoryThreshold = this.players.length * 50; // 50 crops per player
+    if (this.gameState.harvestedCrops >= victoryThreshold) {
+      console.log('Victory achieved! Enough crops harvested.');
+      this.endGame();
+    }
   }
 }
 
@@ -713,26 +946,58 @@ class UIScene extends Phaser.Scene {
   }
 
   create() {
+    // Create background for HUD
+    this.hudBackground = this.add.rectangle(10, 10, 300, 200, 0x000000, 0.7)
+      .setOrigin(0, 0);
+    
     // Create HUD elements
-    this.scoreText = this.add.text(10, 10, 'Score: 0', {
-      fontSize: '24px',
-      fill: '#ffffff'
-    });
-    
-    this.cropsText = this.add.text(10, 40, 'Crops Harvested: 0', {
-      fontSize: '20px', 
-      fill: '#ffffff'
-    });
-    
-    this.playersText = this.add.text(10, 70, 'Players: 0', {
+    this.scoreText = this.add.text(20, 20, 'Score: 0', {
       fontSize: '20px',
-      fill: '#ffffff'
+      fill: '#ffffff',
+      fontWeight: 'bold'
+    });
+    
+    this.cropsText = this.add.text(20, 45, 'Crops Harvested: 0', {
+      fontSize: '16px', 
+      fill: '#8fbc8f'
+    });
+    
+    this.playersText = this.add.text(20, 70, 'Players: 0', {
+      fontSize: '16px',
+      fill: '#8fbc8f'
+    });
+    
+    this.pestsText = this.add.text(20, 95, 'Pests: 0', {
+      fontSize: '16px',
+      fill: '#ff6b6b'
+    });
+    
+    this.weedsText = this.add.text(20, 120, 'Weeds: 0', {
+      fontSize: '16px',
+      fill: '#ffd93d'
+    });
+    
+    this.instructionText = this.add.text(20, 150, 'Use arrow keys to move\nSpace to interact\nWork together!', {
+      fontSize: '12px',
+      fill: '#cccccc',
+      lineSpacing: 2
+    });
+    
+    // Player inventory display
+    this.inventoryText = this.add.text(330, 20, '', {
+      fontSize: '14px',
+      fill: '#ffffff',
+      backgroundColor: '#000000',
+      padding: { x: 10, y: 5 }
     });
   }
 
   update() {
     const gameState = this.registry.get('gameState');
     const gameConfig = this.registry.get('gameConfig');
+    
+    // Get game scene to access current data
+    const gameScene = this.scene.get('GameScene');
     
     if (gameState) {
       this.scoreText.setText(`Score: ${gameState.score}`);
@@ -741,6 +1006,20 @@ class UIScene extends Phaser.Scene {
     
     if (gameConfig) {
       this.playersText.setText(`Players: ${gameConfig.players}`);
+    }
+    
+    if (gameScene && gameScene.pests && gameScene.weeds) {
+      this.pestsText.setText(`Pests: ${gameScene.pests.length}`);
+      this.weedsText.setText(`Weeds: ${gameScene.weeds.length}`);
+      
+      // Show player inventories
+      let inventoryInfo = 'Player Inventories:\n';
+      gameScene.players.forEach((player, index) => {
+        const crops = player.inventory.filter(item => item === 'crop').length;
+        const pests = player.inventory.filter(item => item === 'pest').length;
+        inventoryInfo += `P${index + 1} (${player.role}): ${crops}🌽 ${pests}🐛\n`;
+      });
+      this.inventoryText.setText(inventoryInfo);
     }
   }
 }

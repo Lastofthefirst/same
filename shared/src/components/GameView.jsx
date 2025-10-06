@@ -7,16 +7,17 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
 
   onMount(async () => {
     try {
+      console.log('[GAMEVIEW] Mounting GameView component');
       // Dynamically import Phaser to avoid SSR issues
       const Phaser = await import('phaser');
       
       // Create Phaser game configuration
       const config = {
         type: Phaser.AUTO,
-        width: '100%',
-        height: '100%',
+        width: window.innerWidth,
+        height: window.innerHeight,
         parent: gameContainer(),
-        backgroundColor: '#4ade80',
+        backgroundColor: '#2d5016',
         physics: {
           default: 'arcade',
           arcade: {
@@ -28,16 +29,42 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
           preload: preloadGame,
           create: createGame,
           update: updateGame
+        },
+        scale: {
+          mode: Phaser.Scale.RESIZE,
+          autoCenter: Phaser.Scale.CENTER_BOTH
         }
       };
 
       const game = new Phaser.Game(config);
       setPhaserGame(game);
+      console.log('[GAMEVIEW] Phaser game created');
       
-      // Register additional message handler if provided
-      if (wsConnection && typeof wsConnection.addMessageHandler === 'function' && typeof onMessage === 'function') {
-        wsConnection.addMessageHandler(onMessage);
-      }
+      // Set up message handling from outside the game
+      const waitForScene = setInterval(() => {
+        if (game.scene.scenes[0]) {
+          clearInterval(waitForScene);
+          console.log('[GAMEVIEW] Game scene ready');
+          
+          // Bind functions to game scenes
+          game.scene.scenes[0].createFarmMap = createFarmMap.bind(game.scene.scenes[0]);
+          game.scene.scenes[0].createSpecialTiles = createSpecialTiles.bind(game.scene.scenes[0]);
+          game.scene.scenes[0].createUI = createUI.bind(game.scene.scenes[0]);
+          game.scene.scenes[0].handleResize = handleResize.bind(game.scene.scenes[0]);
+          game.scene.scenes[0].updateRemotePlayer = updateRemotePlayer.bind(game.scene.scenes[0]);
+          game.scene.scenes[0].performFarmingAction = performFarmingAction.bind(game.scene.scenes[0]);
+          game.scene.scenes[0].showActionFeedback = showActionFeedback.bind(game.scene.scenes[0]);
+          
+          // Set up message handling from outside the game
+          const gameScene = game.scene.scenes[0];
+          if (wsConnection && typeof wsConnection.addMessageHandler === 'function' && typeof onMessage === 'function') {
+            // Add the message handler to the WebSocket connection
+            wsConnection.addMessageHandler(onMessage);
+            console.log('[GAMEVIEW] Message handler added');
+          }
+        }
+      }, 10);
+      
     } catch (error) {
       console.error('[GAME] Failed to initialize Phaser game:', error);
     }
@@ -50,9 +77,8 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
     }
     
     // Remove message handler if it was added
-    const ws = wsConnection;
-    if (ws && typeof ws.removeMessageHandler === 'function' && typeof onMessage === 'function') {
-      ws.removeMessageHandler(onMessage);
+    if (wsConnection && typeof wsConnection.removeMessageHandler === 'function' && typeof onMessage === 'function') {
+      wsConnection.removeMessageHandler(onMessage);
     }
   });
 
@@ -74,53 +100,211 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
 
   function createGame() {
     try {
-      // Set up the game world
-      this.cameras.main.setBackgroundColor('#90EE90'); // Light green farm background
+      // Game constants
+      const TILE_SIZE = 32;
+      const MAP_WIDTH = 25;
+      const MAP_HEIGHT = 25;
+      const WORLD_WIDTH = MAP_WIDTH * TILE_SIZE;
+      const WORLD_HEIGHT = MAP_HEIGHT * TILE_SIZE;
       
-      // Create player sprite
-      const playerIndex = Math.floor(Math.random() * 5);
-      this.player = this.add.rectangle(400, 300, 32, 32, 0xff6b6b);
-      this.player.setStrokeStyle(2, 0xffffff);
+      // Set world bounds
+      this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
       
-      // Store player data
+      // Store game data
       this.playerId = playerId;
       this.players = new Map();
       this.wsConnection = wsConnection;
+      this.tiles = [];
+      this.crops = new Map();
+      this.pests = new Map();
+      
+      // Create tile-based map
+      this.createFarmMap();
+      
+      // Create player sprite
+      this.player = this.physics.add.sprite(
+        (MAP_WIDTH / 2) * TILE_SIZE, 
+        (MAP_HEIGHT / 2) * TILE_SIZE, 
+        null
+      );
+      this.player.setSize(TILE_SIZE - 4, TILE_SIZE - 4);
+      this.player.body.setCollideWorldBounds(true);
+      
+      // Visual representation for player (emoji style)
+      this.playerVisual = this.add.text(this.player.x, this.player.y, '🧑‍🌾', {
+        fontSize: '28px',
+        align: 'center'
+      }).setOrigin(0.5, 0.5);
       
       // Set up input
       this.cursors = this.input.keyboard.createCursorKeys();
-      this.wasd = this.input.keyboard.addKeys('W,S,A,D');
+      this.wasd = this.input.keyboard.addKeys('W,S,A,D,SPACE');
       
-      // Add some visual elements to make it look like a farm
-      this.add.text(20, 20, '🌾 Same Mouth Farm 🌾', {
-        fontSize: '24px',
-        fill: '#2d5016',
-        fontFamily: 'Arial'
-      });
+      // Set up camera to follow player
+      this.cameras.main.startFollow(this.player);
+      this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+      this.cameras.main.setZoom(1.5); // Zoom in for better detail
       
-      this.add.text(20, 50, `Player: ${playerId}`, {
-        fontSize: '16px', 
-        fill: '#2d5016',
-        fontFamily: 'Arial'
-      });
+      // Create UI elements
+      this.createUI();
       
-      // Add some farm elements as placeholders
-      for (let i = 0; i < 20; i++) {
-        const x = Phaser.Math.Between(100, 700);
-        const y = Phaser.Math.Between(100, 500);
-        const crop = this.add.rectangle(x, y, 16, 16, 0x228b22);
-        crop.setStrokeStyle(1, 0x006400);
-      }
+      // Listen for window resize
+      this.scale.on('resize', this.handleResize, this);
       
-      // Listen for network messages
+      // Set up network message handling
       this.networkUpdate = (message) => {
-        if (message.type === 'PLAYER_UPDATE' && message.data.player_id !== this.playerId) {
-          this.updateRemotePlayer(message.data);
+        console.log('[GAME] Received network message:', message);
+        if (message.type === 'PLAYER_UPDATE') {
+          // Check if this is not our own message
+          const senderId = message.player_id || message.data?.player_id;
+          if (senderId && senderId !== this.playerId) {
+            this.updateRemotePlayer({
+              player_id: senderId,
+              x: message.data?.x || message.data?.player?.x,
+              y: message.data?.y || message.data?.player?.y
+            });
+          }
         }
       };
+      
+      console.log('[GAME] Farm created with', MAP_WIDTH, 'x', MAP_HEIGHT, 'tiles');
+      
     } catch (error) {
       console.error('[GAME] Error in createGame:', error);
     }
+  }
+
+  // Helper function to create the farm map
+  function createFarmMap() {
+    const TILE_SIZE = 32;
+    const MAP_WIDTH = 25;
+    const MAP_HEIGHT = 25;
+    
+    // Create background grid
+    for (let x = 0; x < MAP_WIDTH; x++) {
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        const tileX = x * TILE_SIZE;
+        const tileY = y * TILE_SIZE;
+        
+        // Determine tile type based on position
+        let tileEmoji = '🟫'; // Default dirt
+        let tileType = 'dirt';
+        
+        // Create some variety in the map
+        if (Math.random() < 0.1) {
+          tileEmoji = '🪨'; // Rocks
+          tileType = 'rock';
+        } else if (Math.random() < 0.05) {
+          tileEmoji = '🌳'; // Trees
+          tileType = 'tree';
+        } else if (x === 0 || y === 0 || x === MAP_WIDTH - 1 || y === MAP_HEIGHT - 1) {
+          tileEmoji = '🌿'; // Border grass
+          tileType = 'grass';
+        }
+        
+        // Create tile visual
+        const tile = this.add.text(tileX + TILE_SIZE/2, tileY + TILE_SIZE/2, tileEmoji, {
+          fontSize: '24px',
+          align: 'center'
+        }).setOrigin(0.5, 0.5);
+        
+        // Store tile data
+        tile.tileData = {
+          x: x,
+          y: y,
+          type: tileType,
+          crop: null,
+          growth: 0,
+          watered: false
+        };
+        
+        this.tiles.push(tile);
+      }
+    }
+    
+    // Add some special tiles
+    this.createSpecialTiles();
+  }
+
+  // Create special tiles (wagon, role stations, etc.)
+  function createSpecialTiles() {
+    const TILE_SIZE = 32;
+    const MAP_WIDTH = 25;
+    const MAP_HEIGHT = 25;
+    
+    // Place wagon in center-ish area
+    const wagonX = Math.floor(MAP_WIDTH / 2);
+    const wagonY = Math.floor(MAP_HEIGHT / 2) + 3;
+    const wagonTile = this.tiles.find(t => t.tileData.x === wagonX && t.tileData.y === wagonY);
+    if (wagonTile) {
+      wagonTile.setText('🚛');
+      wagonTile.tileData.type = 'wagon';
+    }
+    
+    // Add some pre-planted crops for visual appeal
+    for (let i = 0; i < 10; i++) {
+      const x = Phaser.Math.Between(3, MAP_WIDTH - 4);
+      const y = Phaser.Math.Between(3, MAP_HEIGHT - 4);
+      const tile = this.tiles.find(t => t.tileData.x === x && t.tileData.y === y);
+      if (tile && tile.tileData.type === 'dirt') {
+        tile.setText('🌱');
+        tile.tileData.crop = 'corn';
+        tile.tileData.growth = 1;
+      }
+    }
+  }
+
+  // Create UI elements
+  function createUI() {
+    // Fixed UI that stays on screen
+    this.uiContainer = this.add.container(0, 0);
+    this.uiContainer.setScrollFactor(0); // Fixed to camera
+    
+    // Game title and instructions
+    const title = this.add.text(20, 20, '🌾 Same Mouth Farm 🌾', {
+      fontSize: '32px',
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      stroke: '#000000',
+      strokeThickness: 4
+    });
+    
+    const instructions = this.add.text(20, 60, 'WASD/Arrows: Move • Space: Plant/Water • Work together!', {
+      fontSize: '18px',
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      stroke: '#000000',
+      strokeThickness: 2
+    });
+    
+    // Game status indicator
+    const status = this.add.text(20, 90, '✅ Game Running • Multiplayer Ready', {
+      fontSize: '16px',
+      fill: '#22c55e',
+      fontFamily: 'Arial',
+      stroke: '#000000',
+      strokeThickness: 2
+    });
+    
+    this.uiContainer.add([title, instructions, status]);
+    
+    // Add player info
+    this.playerInfo = this.add.text(20, window.innerHeight - 100, `Player: ${this.playerId}`, {
+      fontSize: '16px',
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      stroke: '#000000',
+      strokeThickness: 2
+    });
+    this.playerInfo.setScrollFactor(0);
+    
+    console.log('[GAME] UI created successfully');
+  }
+
+  // Handle window resize
+  function handleResize(gameSize) {
+    const { width, height } = gameSize;
+    this.cameras.main.setViewport(0, 0, width, height);
   }
 
   function updateRemotePlayer(data) {
@@ -129,18 +313,27 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
       const { player_id, x, y } = data;
       
       if (!this.players.has(player_id)) {
-        // Create new player sprite if it doesn't exist
-        const playerIndex = Array.from(this.players.keys()).length % 5;
-        const playerSprite = this.add.rectangle(x, y, 32, 32, 0x4ecdc4);
-        playerSprite.setStrokeStyle(2, 0xffffff);
-        this.players.set(player_id, playerSprite);
-      }
-      
-      // Update player position
-      const playerSprite = this.players.get(player_id);
-      if (playerSprite) {
-        playerSprite.x = x;
-        playerSprite.y = y;
+        // Create new remote player
+        const playerEmojis = ['👨‍🌾', '👩‍🌾', '🧑‍🌾', '👨‍🎓', '👩‍🎓'];
+        const emoji = playerEmojis[Array.from(this.players.keys()).length % playerEmojis.length];
+        
+        const playerVisual = this.add.text(x, y, emoji, {
+          fontSize: '28px',
+          align: 'center'
+        }).setOrigin(0.5, 0.5);
+        
+        this.players.set(player_id, {
+          x: x,
+          y: y,
+          visual: playerVisual
+        });
+        
+        console.log('[GAME] Added remote player:', player_id);
+      } else {
+        // Update existing player position
+        const playerData = this.players.get(player_id);
+        playerData.x = x;
+        playerData.y = y;
       }
     } catch (error) {
       console.error('[GAME] Error updating remote player:', error);
@@ -151,30 +344,40 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
     try {
       if (!this.player) return;
       
-      const speed = 160;
+      const speed = 120; // Slightly slower for more precise control
       let moved = false;
       
       // Handle player movement
       if (this.cursors.left.isDown || this.wasd.A.isDown) {
-        this.player.x -= speed * this.game.loop.delta / 1000;
+        this.player.setVelocityX(-speed);
         moved = true;
-      }
-      if (this.cursors.right.isDown || this.wasd.D.isDown) {
-        this.player.x += speed * this.game.loop.delta / 1000;
+      } else if (this.cursors.right.isDown || this.wasd.D.isDown) {
+        this.player.setVelocityX(speed);
         moved = true;
-      }
-      if (this.cursors.up.isDown || this.wasd.W.isDown) {
-        this.player.y -= speed * this.game.loop.delta / 1000;
-        moved = true;
-      }
-      if (this.cursors.down.isDown || this.wasd.S.isDown) {
-        this.player.y += speed * this.game.loop.delta / 1000;
-        moved = true;
+      } else {
+        this.player.setVelocityX(0);
       }
       
-      // Keep player within bounds
-      this.player.x = Phaser.Math.Clamp(this.player.x, 16, 784);
-      this.player.y = Phaser.Math.Clamp(this.player.y, 16, 584);
+      if (this.cursors.up.isDown || this.wasd.W.isDown) {
+        this.player.setVelocityY(-speed);
+        moved = true;
+      } else if (this.cursors.down.isDown || this.wasd.S.isDown) {
+        this.player.setVelocityY(speed);
+        moved = true;
+      } else {
+        this.player.setVelocityY(0);
+      }
+      
+      // Update player visual to follow physics body
+      if (this.playerVisual) {
+        this.playerVisual.x = this.player.x;
+        this.playerVisual.y = this.player.y;
+      }
+      
+      // Handle space key for farming actions
+      if (Phaser.Input.Keyboard.JustDown(this.wasd.SPACE)) {
+        this.performFarmingAction();
+      }
       
       // Send position update if moved
       if (moved && this.wsConnection && this.wsConnection.isConnected) {
@@ -188,9 +391,98 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
         );
         this.wsConnection.send(message);
       }
+      
+      // Update remote players
+      for (const [playerId, playerData] of this.players) {
+        if (playerData.visual) {
+          playerData.visual.x = playerData.x;
+          playerData.visual.y = playerData.y;
+        }
+      }
+      
     } catch (error) {
       console.error('[GAME] Error in updateGame:', error);
     }
+  }
+
+  // Handle farming actions (planting, watering, harvesting)
+  function performFarmingAction() {
+    try {
+      const TILE_SIZE = 32;
+      const playerTileX = Math.floor(this.player.x / TILE_SIZE);
+      const playerTileY = Math.floor(this.player.y / TILE_SIZE);
+      
+      const currentTile = this.tiles.find(t => 
+        t.tileData.x === playerTileX && t.tileData.y === playerTileY
+      );
+      
+      if (!currentTile) return;
+      
+      const tileData = currentTile.tileData;
+      
+      if (tileData.type === 'dirt' && !tileData.crop) {
+        // Plant a crop
+        currentTile.setText('🌱');
+        tileData.crop = 'corn';
+        tileData.growth = 1;
+        this.showActionFeedback('🌱 Planted!', this.player.x, this.player.y - 40);
+        console.log('[FARMING] Planted crop at', playerTileX, playerTileY);
+        
+      } else if (tileData.crop && tileData.growth < 3 && !tileData.watered) {
+        // Water the crop
+        tileData.watered = true;
+        this.showActionFeedback('💧 Watered!', this.player.x, this.player.y - 40);
+        setTimeout(() => {
+          if (tileData.crop && tileData.growth < 3) {
+            tileData.growth++;
+            if (tileData.growth === 2) {
+              currentTile.setText('🌾');
+            } else if (tileData.growth === 3) {
+              currentTile.setText('🌽');
+            }
+            tileData.watered = false;
+          }
+        }, 2000); // Crop grows after 2 seconds
+        console.log('[FARMING] Watered crop at', playerTileX, playerTileY);
+        
+      } else if (tileData.crop && tileData.growth === 3) {
+        // Harvest the crop
+        currentTile.setText('🟫');
+        tileData.crop = null;
+        tileData.growth = 0;
+        tileData.watered = false;
+        this.showActionFeedback('🌽 Harvested!', this.player.x, this.player.y - 40);
+        console.log('[FARMING] Harvested crop at', playerTileX, playerTileY);
+      } else if (tileData.type === 'rock' || tileData.type === 'tree') {
+        this.showActionFeedback("❌ Can't farm here!", this.player.x, this.player.y - 40);
+      }
+      
+    } catch (error) {
+      console.error('[GAME] Error in farming action:', error);
+    }
+  }
+  
+  // Show action feedback
+  function showActionFeedback(text, x, y) {
+    const feedback = this.add.text(x, y, text, {
+      fontSize: '16px',
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      stroke: '#000000',
+      strokeThickness: 2
+    }).setOrigin(0.5, 0.5);
+    
+    // Animate feedback
+    this.tweens.add({
+      targets: feedback,
+      y: y - 30,
+      alpha: 0,
+      duration: 1500,
+      ease: 'Power2',
+      onComplete: () => {
+        feedback.destroy();
+      }
+    });
   }
 
   // Helper function to create colored rectangle data URL
@@ -205,25 +497,95 @@ function GameView({ connectionInfo, wsConnection, playerId, onLeaveGame, onMessa
   }
 
   return (
-    <div class="game-view">
-      <div class="game-header">
-        <h3>🌾 Playing in the Farm</h3>
-        <button class="btn btn-secondary" onClick={onLeaveGame}>
-          🚪 Leave Game
+    <div class="game-view-fullscreen">
+      <div class="game-header-overlay">
+        <button class="btn btn-secondary exit-game" onClick={onLeaveGame}>
+          🚪 Exit Game
         </button>
+        <div class="game-title">🌾 Same Mouth Farm 🌾</div>
       </div>
       
       <div 
-        class="game-container"
+        class="game-container-fullscreen"
         ref={setGameContainer}
-        style="width: 100%; height: 60vh; min-height: 400px; border-radius: 1rem; overflow: hidden; background: #000;"
       ></div>
       
-      <div class="game-controls">
-        <p style="text-align: center; color: rgba(255, 255, 255, 0.8); margin: 1rem 0;">
-          🎮 Use arrow keys or WASD to move around the farm
-        </p>
-      </div>
+      <style jsx>{`
+        .game-view-fullscreen {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          z-index: 1000;
+          background: #000;
+          overflow: hidden;
+        }
+        
+        .game-header-overlay {
+          position: absolute;
+          top: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 1001;
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          background: rgba(0, 0, 0, 0.7);
+          padding: 10px 20px;
+          border-radius: 10px;
+          backdrop-filter: blur(10px);
+        }
+        
+        .game-title {
+          color: white;
+          font-size: 1.5rem;
+          font-weight: bold;
+          text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+        
+        .exit-game {
+          background: rgba(255, 255, 255, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          color: white;
+          padding: 8px 16px;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-weight: bold;
+        }
+        
+        .exit-game:hover {
+          background: rgba(255, 255, 255, 0.3);
+          transform: translateY(-1px);
+        }
+        
+        .game-container-fullscreen {
+          width: 100%;
+          height: 100%;
+          background: #2d5016;
+        }
+        
+        @media (max-width: 768px) {
+          .game-header-overlay {
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            transform: none;
+            justify-content: space-between;
+            padding: 8px 12px;
+          }
+          
+          .game-title {
+            font-size: 1.2rem;
+          }
+          
+          .exit-game {
+            padding: 6px 12px;
+            font-size: 0.9rem;
+          }
+        }
+      `}</style>
     </div>
   );
 }

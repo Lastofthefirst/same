@@ -1,7 +1,7 @@
 import { createSignal, onMount, onCleanup } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { createReconnectingWebSocket, createMessage } from "@shared/utils/networkUtils";
-import { MultiPlayerManager, GameRoom } from "@shared/components";
+import { MultiPlayerManager, GameView } from "@shared/components";
 
 function GameHost({ gameInfo, onBackToMenu }) {
   const [players, setPlayers] = createSignal([]);
@@ -342,13 +342,14 @@ function GameHost({ gameInfo, onBackToMenu }) {
           </div>
         </div>
 
-        {/* Game Room - shown when playing */}
+        {/* Game View - shown when playing */}
         {gameState() === 'playing' && (
-          <GameRoom 
-            players={() => [...players(), ...localPlayers().filter(p => p.connected)]}
-            localPlayer={players().find(p => p.id === 'host') || { id: 'host', name: 'Host', x: 50, y: 50 }}
-            onPlayerMove={handlePlayerMove}
-            isHost={true}
+          <GameView 
+            connectionInfo={gameInfo}
+            wsConnection={serverConnection()}
+            playerId="host"
+            onLeaveGame={stopServer}
+            onMessage={handleServerMessage}
           />
         )}
 

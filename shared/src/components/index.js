@@ -1,2 +1,3 @@
 // Shared UI components
-export * from './GameView.js';
+export { default as GameView } from './GameView.jsx';
+export { default as MultiPlayerManager } from './MultiPlayerManager.jsx';

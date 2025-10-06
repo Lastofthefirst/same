@@ -43,7 +43,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@shared': '/node_modules/@same/shared/src'
+      '@shared': new URL('../shared/src', import.meta.url).pathname
     }
   }
 });

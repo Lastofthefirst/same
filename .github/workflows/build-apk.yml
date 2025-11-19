@@ -30,6 +30,13 @@ jobs:
           toolchain: stable
           override: true
 
+      - name: Add Rust Android targets
+        run: |
+          rustup target add aarch64-linux-android
+          rustup target add armv7-linux-androideabi
+          rustup target add i686-linux-android
+          rustup target add x86_64-linux-android
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
